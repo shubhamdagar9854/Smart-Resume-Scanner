@@ -1,14 +1,22 @@
-// Show selected file name
-document.getElementById('resume').addEventListener('change', (e) => {
-    const fileName = document.getElementById('fileName');
-    fileName.textContent = e.target.files[0] ? 'Selected: ' + e.target.files[0].name : '';
-});
+document.addEventListener('DOMContentLoaded', () => {
+    const resumeForm = document.getElementById('resumeForm');
+    const resumeInput = document.getElementById('resume');
+    const fileNameDisplay = document.getElementById('fileName');
 
-// Optional: client-side size check (16MB)
-document.getElementById('resumeForm').addEventListener('submit', (e) => {
-    const file = document.getElementById('resume').files[0];
-    if (file && file.size > 16 * 1024 * 1024) {
-        e.preventDefault();
-        alert('File size must be 16MB or less.');
-    }
+    // Sirf file ka naam dikhane ke liye
+    resumeInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            fileNameDisplay.textContent = 'Selected: ' + e.target.files[0].name;
+        }
+    });
+
+    // Submit par koi e.preventDefault() NAHI hona chahiye
+    resumeForm.addEventListener('submit', () => {
+        // Sirf button ka text badlein feedback ke liye
+        const btn = resumeForm.querySelector('button');
+        btn.textContent = "Uploading...";
+        btn.disabled = true; 
+        
+        // Form apne aap submit hoga aur page refresh hoga
+    });
 });

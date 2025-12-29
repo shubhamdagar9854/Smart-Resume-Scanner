@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +8,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='admin_dashboard.css') }}">
 </head>
+
 <body>
     <div class="dashboard-header">
         <h1>📊 Admin Dashboard</h1>
-        <a href="{{ url_for('admin_logout') }}" class="logout-btn">Logout</a>
+        <div class="header-actions">
+            <a href="/admin/jobs" class="manage-jobs-btn">📌 Manage Job Posts</a>
+            <a href="{{ url_for('admin_logout') }}" class="logout-btn">Logout</a>
+        </div>
     </div>
-    
+
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -20,63 +25,46 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-    
+
     <div class="filter-section">
-        <h2>🔍 Filter by Post Type</h2>
         <form method="POST" class="filter-form">
-            <input type="text" name="post_type" placeholder="e.g., Software Engineer, Data Analyst, Marketing Manager..." value="{{ request.form.post_type if request.form.post_type else '' }}">
-            <button type="submit">Search Candidates</button>
-            <a href="{{ url_for('admin_dashboard') }}" class="show-all-btn">Show All</a>
+            <input type="text" name="keyword" placeholder="Search resumes..."
+                value="{{ request.form.keyword if request.form.keyword else '' }}">
+            <button type="submit">🔍 Search</button>
+            <a href="{{ url_for('admin_dashboard') }}" class="show-all-btn">Reset</a>
         </form>
-        <p style="margin-top: 10px; color: #666; font-size: 12px;">
-            Total Resumes: {{ resumes|length if resumes else 0 }}
-        </p>
     </div>
-    
+
     <div class="resumes-container">
         {% if resumes %}
             {% for resume in resumes %}
-                <div class="resume-card">
-                    <div class="resume-header">
-                        <div class="resume-info">
-                            <h3>{{ resume[1] }}</h3>
-                            <p><strong>Email:</strong> {{ resume[2] }}</p>
-                            {% if resume[5] %}
-                                <p><strong>Post Type:</strong> {{ resume[5] }}</p>
-                            {% endif %}
-                        </div>
-                        <div>
-                            <a href="/uploads/{{ resume[3].split('/')[-1] }}" target="_blank" class="view-resume-link">📄 View Resume</a>
-                        </div>
-                    </div>
-                    
-                    <div class="resume-summary">
-                        <h4>📝 Resume Summary:</h4>
-                        {% if resume[4] and resume[4] != "Ollama AI is not running." and resume[4] != "Resume text not found." and resume[4] != "Error while reading resume file." %}
-                            <div class="summary-content">
-                                <p>{{ resume[4] }}</p>
-                                <a href="{{ url_for('generate_resume_summary', resume_id=resume[0]) }}" class="regenerate-btn" title="Regenerate Summary">🔄 Regenerate</a>
-                            </div>
-                        {% else %}
-                            <div class="no-summary-section">
-                                <p class="no-summary">⚠️ Summary not generated yet. Click the button below to generate summary using AI.</p>
-                                <a href="{{ url_for('generate_resume_summary', resume_id=resume[0]) }}" class="generate-btn">
-                                    🤖 Generate Summary with AI
-                                </a>
-                            </div>
-                        {% endif %}
-                    </div>
+            <div class="resume-card">
+                <div class="resume-info">
+                    <h3>👤 {{ resume[1] }}</h3>
+                    <p><strong>Email:</strong> {{ resume[2] }}</p>
                 </div>
+
+                <div class="resume-summary">
+                    <h4>📝 Summary:</h4>
+                    {% if resume[4] and 'Generating' not in resume[4] and 'failed' not in resume[4].lower() %}
+                        <div class="summary-content">
+                            <p>{{ resume[4] }}</p>
+                        </div>
+                    {% else %}
+                        <div class="no-summary-section">
+                            <p>Summary not ready. Please refresh the page.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
             {% endfor %}
         {% else %}
             <div class="empty-state">
-                <h2>No resumes found</h2>
-                <p>No resumes match your search criteria or no resumes have been uploaded yet.</p>
+                <h2>No resumes found.</h2>
             </div>
         {% endif %}
     </div>
-    
+
     <script src="{{ url_for('static', filename='admin_dashboard.js') }}"></script>
 </body>
 </html>
-

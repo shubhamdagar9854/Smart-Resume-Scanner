@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Matching Candidates</title>
+</head>
+<body>
+
+<h2>Matching Candidates</h2>
+
+{% if resumes %}
+    {% for r in resumes %}
+        <div style="border:1px solid #ccc;padding:10px;margin-bottom:10px">
+            <h3>{{ r.name }}</h3>
+            <p>Email: {{ r.email }}</p>
+            <strong>Match: {{ r.match }}%</strong>
+        </div>
+    {% endfor %}
+{% else %}
+    <p>No matching candidates found.</p>
+{% endif %}
+
+<a href="/admin/jobs">⬅ Back</a>
+
+</body>
+</html>

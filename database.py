@@ -1,132 +1,198 @@
 import sqlite3
+import json
 
-# Database ka naam
 DB_NAME = "resumes.db"
 
-
-# 🔹 Database aur tables banana
+# --- INITIALIZE DATABASE ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-
-    # Resume table
+    # Resumes Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS resumes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             email TEXT,
             file_path TEXT,
-            summary TEXT,
-            post_type TEXT
+            summary TEXT
         )
-    """)
+        """)
 
-    # Admin table
+    # Job Posts Table
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS admin (
+        CREATE TABLE IF NOT EXISTS job_posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            password TEXT
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            requirements TEXT, 
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-    # Default admin insert (agar admin nahi hai)
+    # Admin Table
+    cur.execute("CREATE TABLE IF NOT EXISTS admin (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)")
     cur.execute("SELECT * FROM admin")
-    admin = cur.fetchone()
-
-    if admin is None:
-        cur.execute(
-            "INSERT INTO admin (username, password) VALUES (?, ?)",
-            ("admin", "admin123")
-        )
-
+    if cur.fetchone() is None:
+        cur.execute("INSERT INTO admin (username, password) VALUES (?, ?)", ("admin", "admin123"))
     conn.commit()
     conn.close()
 
-
-# 🔹 Resume add karna
-def add_resume(name, email, file_path, summary=None, post_type=None):
+# --- JOB FUNCTIONS ---
+def add_job_post(title, description, requirements=None):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-
     cur.execute(
-        "INSERT INTO resumes (name, email, file_path, summary, post_type) VALUES (?, ?, ?, ?, ?)",
-        (name, email, file_path, summary, post_type)
+        "INSERT INTO job_posts (title, description, requirements) VALUES (?, ?, ?)",
+        (title, description, requirements)
     )
-
+    new_id = cur.lastrowid
     conn.commit()
-    resume_id = cur.lastrowid
     conn.close()
-    return resume_id
+    return new_id
 
-
-# 🔹 Saare resumes lana
-def get_all_resumes():
+def get_job_post_by_id(job_id):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-
-    cur.execute("SELECT * FROM resumes ORDER BY id DESC")
-    data = cur.fetchall()
-
+    cur.execute("SELECT * FROM job_posts WHERE id = ?", (job_id,))
+    job = cur.fetchone()
     conn.close()
-    return data
+    return job
 
-
-# 🔹 Ek resume ID se lana
-def get_resume_by_id(resume_id):
+def get_all_job_posts():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-
-    cur.execute("SELECT * FROM resumes WHERE id = ?", (resume_id,))
-    data = cur.fetchone()
-
+    cur.execute("SELECT * FROM job_posts ORDER BY id DESC")
+    rows = cur.fetchall()
     conn.close()
-    return data
+    return rows
 
+# --- AI MATCHING LOGIC ---
+# Note: Iska naam 'get_job_matches' rakha hai taaki app.py se match kare
+def get_job_matches(job_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
 
-# 🔹 Admin login check
-def verify_admin(username, password):
+    # Job requirements - description se keywords extract karte hain
+    cursor.execute("SELECT title, description, requirements FROM job_posts WHERE id = ?", (job_id,))
+    job = cursor.fetchone()
+    if not job:
+        return []
+
+    # Title + description + requirements se keywords banate hain
+    job_text = f"{job[0]} {job[1]} {job[2] or ''}".lower()
+    
+    # Common skills/keywords extract karte hain
+    import re
+    # Words ke liye regex (2+ letters)
+    words = re.findall(r'\b[a-zA-Z]{2,}\b', job_text)
+    
+    # Common technical skills aur qualifications
+    tech_keywords = ['python', 'java', 'javascript', 'react', 'node', 'sql', 'mongodb', 'aws', 'docker', 
+                   'git', 'agile', 'scrum', 'api', 'rest', 'html', 'css', 'angular', 'vue', 'django', 
+                   'flask', 'machine', 'learning', 'ai', 'data', 'science', 'analytics', 'devops']
+    
+    education_keywords = ['bsc', 'msc', 'bachelor', 'master', 'phd', 'degree', 'engineering', 
+                         'computer', 'science', 'information', 'technology']
+    
+    # Unique words filter karte hain
+    job_skills = list(set([word for word in words if len(word) > 2]))
+    
+    # Add specific tech/education keywords if present
+    for keyword in tech_keywords + education_keywords:
+        if keyword in job_text:
+            job_skills.append(keyword)
+
+    # All resumes
+    cursor.execute("SELECT id, name, email, summary FROM resumes")
+    resumes = cursor.fetchall()
+
+    matches = []
+
+    for r in resumes:
+        resume_text = (r[3] or "").lower()
+        
+        # Count matching keywords
+        matched_keywords = []
+        for skill in job_skills:
+            if skill in resume_text:
+                matched_keywords.append(skill)
+        
+        # Calculate match percentage
+        match_percent = 0
+        if job_skills:
+            match_percent = int((len(matched_keywords) / len(job_skills)) * 100)
+        
+        # Only show matches with at least 10% match
+        if match_percent >= 10:
+            matches.append({
+                "id": r[0],
+                "name": r[1],
+                "email": r[2],
+                "summary": r[3] or "",
+                "match": match_percent,
+                "matched_skills": matched_keywords
+            })
+
+    # Sort by match percentage (highest first)
+    matches.sort(key=lambda x: x["match"], reverse=True)
+    
+    conn.close()
+    return matches
+
+# --- RESUME UTILITIES ---
+def add_resume(name, email, file_path, summary):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-
-    cur.execute(
-        "SELECT * FROM admin WHERE username = ? AND password = ?",
-        (username, password)
-    )
-
-    admin = cur.fetchone()
+    cur.execute("INSERT INTO resumes (name, email, file_path, summary) VALUES (?, ?, ?, ?)", 
+                (name, email, file_path, summary))
+    new_id = cur.lastrowid
+    conn.commit()
     conn.close()
+    return new_id
 
-    if admin:
-        return True
-    else:
-        return False
-
-
-# 🔹 Resume filter (post type se)
-def filter_resumes_by_post(post_type):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT * FROM resumes WHERE post_type LIKE ? OR summary LIKE ?",
-        ('%' + post_type + '%', '%' + post_type + '%')
-    )
-
-    data = cur.fetchall()
-    conn.close()
-    return data
-
-
-# 🔹 Resume summary update karna
 def update_resume_summary(resume_id, summary):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-
-    cur.execute(
-        "UPDATE resumes SET summary = ? WHERE id = ?",
-        (summary, resume_id)
-    )
-
+    cur.execute("UPDATE resumes SET summary = ? WHERE id = ?", (summary, resume_id))
     conn.commit()
     conn.close()
+
+def get_all_resumes():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM resumes ORDER BY id DESC")
+    data = cur.fetchall()
+    conn.close()
+    return data
+
+def get_resume_by_id(resume_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM resumes WHERE id = ?", (resume_id,))
+    resume = cur.fetchone()
+    conn.close()
+    return resume
+
+def filter_resumes_by_keyword(keyword):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    query = f"%{keyword}%"
+    cur.execute("SELECT * FROM resumes WHERE name LIKE ? OR summary LIKE ?", (query, query))
+    results = cur.fetchall()
+    conn.close()
+    return results
+
+# def filter_resumes_by_post(post_type):
+#     conn = sqlite3.connect(DB_NAME)
+#     cur = conn.cursor()
+#     cur.execute("SELECT * FROM resumes WHERE post_type = ?", (post_type,))
+#     results = cur.fetchall()
+#     conn.close()
+#     return results
+
+def verify_admin(username, password):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admin WHERE username = ? AND password = ?", (username, password))
+    user = cur.fetchone()
+    conn.close()
+    return user is not None

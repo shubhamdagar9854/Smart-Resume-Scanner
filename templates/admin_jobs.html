@@ -108,6 +108,9 @@
                         {% if m.matched_skills %}
                             <p>🎯 Matched Skills: {{ m.matched_skills|join(', ') }}</p>
                         {% endif %}
+                        {% if m.summary %}
+                            <p>📝 Summary: {{ m.summary[:100] }}...</p>
+                        {% endif %}
                     </div>
                     <div class="match-percentage">{{ m.match }}%</div>
                 </div>

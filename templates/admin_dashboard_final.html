@@ -54,7 +54,7 @@
                             </a>
                         {% endif %}
                         <div class="action-buttons">
-                            <a href="{{ url_for('serve_upload', filename=resume[5].split('\\')[-1]) if resume[5] else '#' }}" 
+                            <a href="{{ url_for('serve_upload', filename=resume[5].replace('uploads/', '')) if resume[5] else '#' }}" 
                                class="view-resume-btn" target="_blank">📄 View Resume</a>
                         </div>
                     </div>
@@ -98,6 +98,11 @@
     </div>
     {% endif %}
 
-    <script src="{{ url_for('static', filename='admin_dashboard.js') }}"></script>
+    <script>
+        // Function to open image in new window
+        function openImage(imageSrc) {
+            window.open(imageSrc, '_blank');
+        }
+    </script>
 </body>
 </html>

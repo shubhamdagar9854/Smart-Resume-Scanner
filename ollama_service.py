@@ -1,6 +1,12 @@
-import ollama
+import os
 import PyPDF2
 import docx
+
+# Check if running in production (no ollama available)
+IS_PRODUCTION = os.environ.get('RENDER') or not os.system('which ollama > /dev/null 2>&1') == 0
+
+if not IS_PRODUCTION:
+    import ollama
 
 # 1. Resume se text nikalne ke liye
 def get_text_from_resume(file_path):
@@ -72,30 +78,58 @@ def create_resume_summary(text):
     
     text = text.strip()
     if len(text) < 20:
-        return f"Resume contains minimal content: {text}"
+        return f"• Resume contains minimal content: {text}"
     
-    # Clean and format text
+    # Clean text completely
+    import re
     text = text.replace('\n', ' ').replace('\r', ' ')
+    # Remove all extra spaces between letters
+    text = re.sub(r'\s+', ' ', text)
+    # Remove weird characters except basic ones
+    text = re.sub(r'[^a-zA-Z0-9\s\-\.\,\@\/]', ' ', text)
+    # Clean up multiple spaces again
+    text = re.sub(r'\s+', ' ', text)
     
-    # Extract key information
-    lines = text.split('.')
-    summary_parts = []
+    # Split into sentences
+    sentences = [s.strip() for s in text.split('.') if s.strip()]
     
-    for line in lines[:5]:  # First 5 sentences
-        line = line.strip()
-        if len(line) > 10:  # Only meaningful sentences
-            summary_parts.append(line)
-            if len(' '.join(summary_parts)) > 250:
-                break
+    bullet_points = []
     
-    if summary_parts:
-        summary = '. '.join(summary_parts)
-        if not summary.endswith('.'):
-            summary += '.'
-        return summary[:400] + ('...' if len(summary) > 400 else '')
+    # Look for meaningful sentences with keywords
+    keywords = ['experience', 'skilled', 'proficient', 'expert', 'knowledge', 'worked', 'developed', 'managed', 'led', 'created', 'years', 'professional', 'engineer', 'developer', 'designer', 'analyst', 'python', 'java', 'javascript', 'software', 'web', 'data', 'system']
+    
+    for sentence in sentences[:5]:
+        if len(sentence) > 20 and len(sentence) < 200:
+            # Check for keywords
+            if any(keyword in sentence.lower() for keyword in keywords):
+                clean_sentence = sentence.capitalize()
+                if not clean_sentence.endswith('.'):
+                    clean_sentence += '.'
+                bullet_points.append(clean_sentence)
+                if len(bullet_points) >= 3:
+                    break
+    
+    # If no good sentences found, create general ones
+    if len(bullet_points) < 2:
+        # Extract key information manually
+        if 'python' in text.lower():
+            bullet_points.append("Experienced Python developer with strong programming skills.")
+        if 'developer' in text.lower():
+            bullet_points.append("Professional software developer with technical expertise.")
+        if 'experience' in text.lower():
+            bullet_points.append("Proven work experience in relevant field.")
+        
+        # Add a general point if still less than 2
+        if len(bullet_points) < 2:
+            bullet_points.append("Skilled professional with strong technical background.")
+    
+    # Format final bullet points
+    if bullet_points:
+        summary = "• " + "\n• ".join(bullet_points[:3])
+        return summary[:300] + ("..." if len(summary) > 300 else "")
     else:
-        # If no sentences found, return first 200 characters
-        return text[:200] + ('...' if len(text) > 200 else '')
+        # Simple fallback
+        return f"• Professional with relevant experience and skills."
 
 # 3. YEH FUNCTION MISSING THA - Isse add karein
 def match_resume_with_job(resume_summary, job_title, job_description):
@@ -103,6 +137,28 @@ def match_resume_with_job(resume_summary, job_title, job_description):
     Candidate ki summary ko Job Description se match karta hai.
     Specially checking for BSc/MSc and Agile skills.
     """
+    # Simple keyword-based matching for production
+    if IS_PRODUCTION:
+        # Extract keywords from job description
+        job_text = f"{job_title} {job_description}".lower()
+        resume_text = resume_summary.lower()
+        
+        # Common tech and education keywords
+        tech_keywords = ['python', 'java', 'javascript', 'react', 'node', 'sql', 'aws', 'docker', 'git', 'agile', 'scrum']
+        education_keywords = ['bsc', 'msc', 'bachelor', 'master', 'degree', 'engineering']
+        
+        matched_skills = []
+        for keyword in tech_keywords + education_keywords:
+            if keyword in job_text and keyword in resume_text:
+                matched_skills.append(keyword)
+        
+        # Calculate match percentage
+        total_keywords = len([k for k in tech_keywords + education_keywords if k in job_text])
+        match_percent = int((len(matched_skills) / max(total_keywords, 1)) * 100)
+        
+        return f"Match: {match_percent}% - Skills: {', '.join(matched_skills)}"
+    
+    # Original AI matching for local development
     prompt = f"""
     You are an expert HR Recruiter. 
     Analyze the match between this Candidate and the Job.

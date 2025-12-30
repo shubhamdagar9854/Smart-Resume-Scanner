@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 import os
 import threading
 from werkzeug.utils import secure_filename
@@ -82,6 +82,7 @@ def home():
     if request.method == "POST":
         name = request.form.get("name")
         email = request.form.get("email")
+        phone = request.form.get("phone", "")
         file = request.files.get("resume")
 
         if not file or file.filename == "":
@@ -99,10 +100,11 @@ def home():
         resume_id = add_resume(
             name=name,
             email=email,
+            phone=phone,
+            photo="",  # Photo field added but empty for now
             file_path=filepath,  
             summary="Processing summary..."
         )
-
 
         thread = threading.Thread(
             target=generate_summary_in_background,
@@ -136,6 +138,19 @@ def admin_login():
     return render_template("admin_login.html")
 
 
+@app.route("/admin/candidate/<int:candidate_id>")
+def admin_candidate_detail(candidate_id):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+    
+    candidate = get_resume_by_id(candidate_id)
+    if not candidate:
+        flash("Candidate not found", "error")
+        return redirect(url_for("admin_dashboard"))
+    
+    return render_template("candidate_detail.html", candidate=candidate)
+
+
 @app.route("/admin/logout")
 def admin_logout():
     session.clear()
@@ -151,14 +166,36 @@ def admin_logout():
 def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
-
-    if request.method == "POST":
-        keyword = request.form.get("keyword", "").strip()
-        resumes = filter_resumes_by_keyword(keyword) if keyword else get_all_resumes()
-    else:
-        resumes = get_all_resumes()
-
-    return render_template("admin_dashboard.html", resumes=resumes)
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = 5
+    
+    # Get all resumes (no search functionality)
+    resumes = get_all_resumes()
+    
+    # Pagination logic
+    total = len(resumes)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_resumes = resumes[start:end]
+    
+    # Calculate pagination info
+    has_prev = page > 1
+    has_next = end < total
+    prev_page = page - 1 if has_prev else None
+    next_page = page + 1 if has_next else None
+    
+    return render_template(
+        "admin_dashboard.html", 
+        resumes=paginated_resumes,
+        page=page,
+        has_prev=has_prev,
+        has_next=has_next,
+        prev_page=prev_page,
+        next_page=next_page,
+        total=total,
+        per_page=per_page
+    )
 
 
 # =========================
@@ -215,6 +252,19 @@ def api_get_jobs():
     })
 
 
+@app.route("/uploads/<filename>")
+def serve_upload(filename):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+    
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except Exception as e:
+        print(f"Error serving file: {e}")
+        flash("Resume file not found", "error")
+        return redirect(url_for("admin_dashboard"))
+
+
 @app.route("/api/get_matches/<int:job_id>")
 def api_get_matches(job_id):
     matches = get_job_matches(job_id)
@@ -224,3 +274,5 @@ def api_get_matches(job_id):
 # =========================
 if __name__ == "__main__":
     app.run(debug=True)
+    
+app = Flask(__name__)

@@ -13,6 +13,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             email TEXT,
+            phone TEXT,
+            photo TEXT,
             file_path TEXT,
             summary TEXT
         )
@@ -101,14 +103,13 @@ def get_job_matches(job_id):
         if keyword in job_text:
             job_skills.append(keyword)
 
-    # All resumes
-    cursor.execute("SELECT id, name, email, summary FROM resumes")
+    cursor.execute("SELECT id, name, email, phone, summary FROM resumes")
     resumes = cursor.fetchall()
 
     matches = []
 
     for r in resumes:
-        resume_text = (r[3] or "").lower()
+        resume_text = (r[4] or "").lower()
         
         # Count matching keywords
         matched_keywords = []
@@ -127,7 +128,8 @@ def get_job_matches(job_id):
                 "id": r[0],
                 "name": r[1],
                 "email": r[2],
-                "summary": r[3] or "",
+                "phone": r[3] if len(r) > 3 else None,
+                "summary": r[4] or "",
                 "match": match_percent,
                 "matched_skills": matched_keywords
             })
@@ -139,11 +141,11 @@ def get_job_matches(job_id):
     return matches
 
 # --- RESUME UTILITIES ---
-def add_resume(name, email, file_path, summary):
+def add_resume(name, email, phone, photo, file_path, summary):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("INSERT INTO resumes (name, email, file_path, summary) VALUES (?, ?, ?, ?)", 
-                (name, email, file_path, summary))
+    cur.execute("INSERT INTO resumes (name, email, phone, photo, file_path, summary) VALUES (?, ?, ?, ?, ?, ?)", 
+                (name, email, phone, photo, file_path, summary))
     new_id = cur.lastrowid
     conn.commit()
     conn.close()
@@ -176,7 +178,7 @@ def filter_resumes_by_keyword(keyword):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     query = f"%{keyword}%"
-    cur.execute("SELECT * FROM resumes WHERE name LIKE ? OR summary LIKE ?", (query, query))
+    cur.execute("SELECT * FROM resumes WHERE name LIKE ? OR email LIKE ? OR summary LIKE ? ORDER BY id DESC", (query, query, query))
     results = cur.fetchall()
     conn.close()
     return results

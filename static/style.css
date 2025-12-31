@@ -80,3 +80,36 @@ button:hover {
     color: #721c24;
     border: 1px solid #f5c6cb;
 }
+/* 📱 Mobile Responsive CSS */
+@media (max-width: 768px) {
+
+    body {
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    .container {
+        width: 100%;
+        padding: 10px;
+    }
+
+    table {
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+    }
+
+    th, td {
+        font-size: 13px;
+        padding: 8px;
+    }
+
+    input, textarea, button {
+        width: 100%;
+        font-size: 14px;
+    }
+
+    h1, h2, h3 {
+        font-size: 18px;
+    }
+}

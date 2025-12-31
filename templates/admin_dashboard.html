@@ -10,94 +10,95 @@
 </head>
 
 <body>
-    <div class="dashboard-header">
-        <h1>📊 Admin Dashboard</h1>
-        <div class="header-actions">
-            <a href="/admin/jobs" class="manage-jobs-btn">📌 Manage Job Posts</a>
-            <a href="{{ url_for('admin_logout') }}" class="logout-btn">Logout</a>
+    <div class="admin-container">
+        <div class="dashboard-header">
+            <h1>📊 Admin Dashboard</h1>
+            <div class="header-actions">
+                <a href="/admin/jobs" class="manage-jobs-btn">📌 Manage Job Posts</a>
+                <a href="{{ url_for('admin_logout') }}" class="logout-btn">Logout</a>
+            </div>
         </div>
-    </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="message {{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-    <div class="resumes-container">
-        {% if resumes %}
-            {% for resume in resumes %}
-            <div class="resume-card">
-                <div class="resume-info">
-                    {% if resume[4] %}
-                        <div class="candidate-photo">
-                            <a href="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" target="_blank">
-                                <img src="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" 
-                                     alt="{{ resume[1] }}" class="photo-img">
-                            </a>
-                        </div>
-                    {% else %}
-                        <div class="candidate-photo">
-                            <span class="photo-placeholder">👤</span>
-                        </div>
-                    {% endif %}
-                    <div class="candidate-details">
-                        <h3><a href="{{ url_for('admin_candidate_detail', candidate_id=resume[0]) }}" style="color: #2c3e50; text-decoration: none;">{{ resume[1] }}</a></h3>
-                        <p><strong>Email:</strong> {{ resume[2] }}</p>
-                        {% if resume[3] %}
-                            <p><strong>Phone:</strong> {{ resume[3] if resume[3] != 'None' else 'Not provided' }}</p>
-                            <a href="https://wa.me/{{ resume[3].replace('+', '').replace(' ', '').replace('-', '') if resume[3] and resume[3] != 'None' else '#' }}" 
-                               class="whatsapp-btn" target="_blank">
-                                💬 WhatsApp
-                            </a>
+        <div class="resumes-container">
+            {% if resumes %}
+                {% for resume in resumes %}
+                <div class="resume-card">
+                    <div class="resume-info">
+                        {% if resume[4] %}
+                            <div class="candidate-photo">
+                                <a href="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" target="_blank">
+                                    <img src="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" 
+                                        alt="{{ resume[1] }}" class="photo-img">
+                                </a>
+                            </div>
+                        {% else %}
+                            <div class="candidate-photo">
+                                <span class="photo-placeholder">👤</span>
+                            </div>
                         {% endif %}
-                        <div class="action-buttons">
-                            <a href="{{ url_for('serve_upload', filename=resume[5].split('\\')[-1]) if resume[5] else '#' }}" 
-                               class="view-resume-btn" target="_blank">📄 View Resume</a>
+                        <div class="candidate-details">
+                            <h3><a href="{{ url_for('admin_candidate_detail', candidate_id=resume[0]) }}" style="color: #2c3e50; text-decoration: none;">{{ resume[1] }}</a></h3>
+                            <p><strong>Email:</strong> {{ resume[2] }}</p>
+                            {% if resume[3] %}
+                                <p><strong>Phone:</strong> {{ resume[3] if resume[3] != 'None' else 'Not provided' }}</p>
+                                <a href="https://wa.me/{{ resume[3].replace('+', '').replace(' ', '').replace('-', '') if resume[3] and resume[3] != 'None' else '#' }}" 
+                                class="whatsapp-btn" target="_blank">
+                                    💬 WhatsApp
+                                </a>
+                            {% endif %}
+                            <div class="action-buttons">
+                                <a href="{{ url_for('serve_upload', filename=resume[5].split('\\')[-1]) if resume[5] else '#' }}" 
+                                class="view-resume-btn" target="_blank">📄 View Resume</a>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="resume-summary">
+                        <h4>📝 Summary:</h4>
+                        {% if resume[6] and 'Generating' not in resume[6] and 'failed' not in resume[6].lower() %}
+                            <div class="summary-content">
+                                <pre style="white-space: pre-line; font-family: inherit; margin: 0;">{{ resume[6] }}</pre>
+                            </div>
+                        {% else %}
+                            <div class="no-summary-section">
+                                <p>Summary not ready. Please refresh the page.</p>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
-
-                <div class="resume-summary">
-                    <h4>📝 Summary:</h4>
-                    {% if resume[6] and 'Generating' not in resume[6] and 'failed' not in resume[6].lower() %}
-                        <div class="summary-content">
-                            <pre style="white-space: pre-line; font-family: inherit; margin: 0;">{{ resume[6] }}</pre>
-                        </div>
-                    {% else %}
-                        <div class="no-summary-section">
-                            <p>Summary not ready. Please refresh the page.</p>
-                        </div>
-                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <h2>No resumes found.</h2>
                 </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty-state">
-                <h2>No resumes found.</h2>
-            </div>
-        {% endif %}
-    </div>
+            {% endif %}
+        </div>
 
-    <!-- Pagination -->
-    {% if total > per_page %}
-    <div class="pagination">
-        {% if has_prev %}
-            <a href="{{ url_for('admin_dashboard', page=prev_page) }}" class="pagination-btn">← Previous</a>
+        <!-- Pagination -->
+        {% if total > per_page %}
+        <div class="pagination">
+            {% if has_prev %}
+                <a href="{{ url_for('admin_dashboard', page=prev_page) }}" class="pagination-btn">← Previous</a>
+            {% endif %}
+            
+            <span class="pagination-info">
+                Page {{ page }} of {{ (total + per_page - 1) // per_page }} ({{ total }} total)
+            </span>
+            
+            {% if has_next %}
+                <a href="{{ url_for('admin_dashboard', page=next_page) }}" class="pagination-btn">Next →</a>
+            {% endif %}
+        </div>
         {% endif %}
-        
-        <span class="pagination-info">
-            Page {{ page }} of {{ (total + per_page - 1) // per_page }} ({{ total }} total)
-        </span>
-        
-        {% if has_next %}
-            <a href="{{ url_for('admin_dashboard', page=next_page) }}" class="pagination-btn">Next →</a>
-        {% endif %}
-    </div>
-    {% endif %}
-
+    </div>   
     <script src="{{ url_for('static', filename='admin_dashboard.js') }}"></script>
 </body>
 </html>

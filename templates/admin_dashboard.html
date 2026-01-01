@@ -55,8 +55,9 @@
                                 </a>
                             {% endif %}
                             <div class="action-buttons">
-                                <a href="{{ url_for('serve_upload', filename=resume[5].split('\\')[-1]) if resume[5] else '#' }}" 
-                                class="view-resume-btn" target="_blank">📄 View Resume</a>
+                               <a href="{{ url_for('serve_upload', filename=resume[5].replace('\\','/').split('/')[-1]) if resume[5] else '#' }}" target="_blank">
+                                    📄 View Resume
+                                </a>
                             </div>
                         </div>
                     </div>

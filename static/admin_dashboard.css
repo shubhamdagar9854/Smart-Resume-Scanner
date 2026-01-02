@@ -377,6 +377,44 @@ body {
 .candidate-details {
     flex: 1;
 }
+
+/* Job Matching Actions */
+.candidate-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.view-details-btn, .view-resume-btn {
+    display: inline-block;
+    padding: 6px 12px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.view-details-btn {
+    background: #007bff;
+    color: white;
+}
+
+.view-details-btn:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+}
+
+.view-resume-btn {
+    background: #28a745;
+    color: white;
+}
+
+.view-resume-btn:hover {
+    background: #218838;
+    transform: translateY(-1px);
+}
 .admin-container {
     max-width: 1200px;
     margin: 0 auto;

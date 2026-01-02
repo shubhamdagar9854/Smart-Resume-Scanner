@@ -113,6 +113,11 @@
                         {% if m.summary %}
                             <p>📝 Summary: {{ m.summary[:100] }}...</p>
                         {% endif %}
+                        <div class="candidate-actions">
+                            <a href="{{ url_for('admin_candidate_detail', candidate_id=m.id) }}" class="view-details-btn">👤 View Details</a>
+                            <a href="{{ url_for('serve_upload', filename=m.file_path.split('\\')[-1] if m.file_path else '') }}" 
+                               class="view-resume-btn" target="_blank">📄 View Resume</a>
+                        </div>
                     </div>
                     <div class="match-percentage">{{ m.match }}%</div>
                 </div>

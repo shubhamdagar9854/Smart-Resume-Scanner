@@ -258,10 +258,23 @@ def serve_upload(filename):
         return redirect(url_for("admin_login"))
     
     try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        # Handle both production and local paths
+        uploads_dir = app.config['UPLOAD_FOLDER']
+        file_path = os.path.join(uploads_dir, filename)
+        
+        print(f"Serving file: {file_path}")
+        print(f"File exists: {os.path.exists(file_path)}")
+        
+        if os.path.exists(file_path):
+            return send_from_directory(uploads_dir, filename)
+        else:
+            print(f"File not found: {file_path}")
+            flash("Resume file not found", "error")
+            return redirect(url_for("admin_dashboard"))
+            
     except Exception as e:
         print(f"Error serving file: {e}")
-        flash("Resume file not found", "error")
+        flash("Error opening resume file", "error")
         return redirect(url_for("admin_dashboard"))
 
 

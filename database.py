@@ -103,13 +103,13 @@ def get_job_matches(job_id):
         if keyword in job_text:
             job_skills.append(keyword)
 
-    cursor.execute("SELECT id, name, email, phone, summary FROM resumes")
+    cursor.execute("SELECT id, name, email, phone, file_path, summary FROM resumes")
     resumes = cursor.fetchall()
 
     matches = []
 
     for r in resumes:
-        resume_text = (r[4] or "").lower()
+        resume_text = (r[5] or "").lower()  # Summary is now at index 5
         
         # Count matching keywords
         matched_keywords = []
@@ -129,7 +129,8 @@ def get_job_matches(job_id):
                 "name": r[1],
                 "email": r[2],
                 "phone": r[3] if len(r) > 3 else None,
-                "summary": r[4] or "",
+                "file_path": r[4] if len(r) > 4 else None,  # Add file_path
+                "summary": r[5] or "",
                 "match": match_percent,
                 "matched_skills": matched_keywords
             })

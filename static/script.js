@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const resumeForm = document.getElementById('resumeForm');
-    const resumeInput = document.getElementById('resume');
+    const resumeInput = document.getElementById('resume_file');
     const fileNameDisplay = document.getElementById('fileName');
 
     // Sirf file ka naam dikhane ke liye

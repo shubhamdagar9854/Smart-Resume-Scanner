@@ -97,7 +97,7 @@ def home():
             flash("No file selected!")
             return redirect(url_for("home"))
 
-        if file:
+        if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
@@ -119,6 +119,9 @@ def home():
             add_resume(name, email, phone, "", file_path, summary)
 
             flash("Resume submitted successfully!")
+            return redirect(url_for("home"))
+        else:
+            flash("Invalid file format! Please upload PDF, DOC, or DOCX file.")
             return redirect(url_for("home"))
 
     return render_template("index.html")

@@ -2,10 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 import os
 import threading
 from werkzeug.utils import secure_filename
-import cloudinary
-import cloudinary.uploader
-import os
-
 
 from ollama_service import (
     get_text_from_resume,
@@ -292,13 +288,6 @@ def serve_upload(filename):
 def api_get_matches(job_id):
     matches = get_job_matches(job_id)
     return jsonify(matches)
-
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET")
-)
-
 
 
 # =========================

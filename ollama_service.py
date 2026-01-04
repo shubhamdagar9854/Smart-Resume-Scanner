@@ -86,7 +86,7 @@ def create_resume_summary(text):
     # Remove all extra spaces between letters
     text = re.sub(r'\s+', ' ', text)
     # Remove weird characters except basic ones
-    text = re.sub(r'[^a-zA-Z0-9\s\-\.\,\@\/]', ' ', text)
+    text = re.sub(r'[^a-zA-Z0-9\s\-\.\,\@\/\#\%]', ' ', text)
     # Clean up multiple spaces again
     text = re.sub(r'\s+', ' ', text)
     
@@ -96,17 +96,22 @@ def create_resume_summary(text):
     bullet_points = []
     
     # Look for meaningful sentences with keywords
-    keywords = ['experience', 'skilled', 'proficient', 'expert', 'knowledge', 'worked', 'developed', 'managed', 'led', 'created', 'years', 'professional', 'engineer', 'developer', 'designer', 'analyst', 'python', 'java', 'javascript', 'software', 'web', 'data', 'system']
+    keywords = ['experience', 'skilled', 'proficient', 'expert', 'knowledge', 'worked', 'developed', 'managed', 'led', 'created', 'years', 'professional', 'engineer', 'developer', 'designer', 'analyst', 'python', 'java', 'javascript', 'software', 'web', 'data', 'system', 'project', 'domain', 'cloud', 'aws', 'docker', 'git', 'api', 'database', 'sql', 'nosql', 'react', 'node', 'angular', 'vue', 'flask', 'django', 'machine', 'learning', 'ai', 'devops', 'agile', 'scrum', 'testing', 'unit', 'integration']
     
-    for sentence in sentences[:5]:
+    for sentence in sentences[:8]:
         if len(sentence) > 20 and len(sentence) < 200:
             # Check for keywords
             if any(keyword in sentence.lower() for keyword in keywords):
                 clean_sentence = sentence.capitalize()
-                if not clean_sentence.endswith('.'):
-                    clean_sentence += '.'
-                bullet_points.append(clean_sentence)
-                if len(bullet_points) >= 3:
+                # Remove weird characters and extra spaces
+                clean_sentence = re.sub(r'[^a-zA-Z0-9\s\-\.\,\@\/\#\%]', '', clean_sentence)
+                clean_sentence = ' '.join(clean_sentence.split())  # Clean spaces
+                
+                if len(clean_sentence) > 20:
+                    if not clean_sentence.endswith('.'):
+                        clean_sentence += '.'
+                    bullet_points.append(clean_sentence)
+                if len(bullet_points) >= 4:
                     break
     
     # If no good sentences found, create general ones
@@ -118,6 +123,12 @@ def create_resume_summary(text):
             bullet_points.append("Professional software developer with technical expertise.")
         if 'experience' in text.lower():
             bullet_points.append("Proven work experience in relevant field.")
+        if 'project' in text.lower():
+            bullet_points.append("Successfully delivered multiple projects with quality results.")
+        if 'cloud' in text.lower():
+            bullet_points.append("Experience with cloud technologies and deployment.")
+        if 'database' in text.lower():
+            bullet_points.append("Strong database management and optimization skills.")
         
         # Add a general point if still less than 2
         if len(bullet_points) < 2:
@@ -125,8 +136,8 @@ def create_resume_summary(text):
     
     # Format final bullet points
     if bullet_points:
-        summary = "• " + "\n• ".join(bullet_points[:3])
-        return summary[:300] + ("..." if len(summary) > 300 else "")
+        summary = "• " + "\n• ".join(bullet_points[:4])  # Max 4 bullet points
+        return summary[:400] + ("..." if len(summary) > 400 else "")
     else:
         # Simple fallback
         return f"• Professional with relevant experience and skills."

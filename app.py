@@ -2,6 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 import os
 import threading
 from werkzeug.utils import secure_filename
+import cloudinary
+import cloudinary.uploader
+import os
+
 
 from ollama_service import (
     get_text_from_resume,
@@ -83,37 +87,43 @@ def home():
         name = request.form.get("name")
         email = request.form.get("email")
         phone = request.form.get("phone", "")
-        file = request.files.get("resume")
 
-        if not file or file.filename == "":
-            flash("No file selected", "error")
-            return redirect(request.url)
+        if not name or not email:
+            flash("Name and email are required!")
+            return redirect(url_for("home"))
 
-        if not allowed_file(file.filename):
-            flash("Invalid file type", "error")
-            return redirect(request.url)
+        if "resume_file" not in request.files:
+            flash("Please upload a resume file!")
+            return redirect(url_for("home"))
 
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        file.save(filepath)
+        file = request.files["resume_file"]
+        if file.filename == "":
+            flash("No file selected!")
+            return redirect(url_for("home"))
 
-        resume_id = add_resume(
-            name=name,
-            email=email,
-            phone=phone,
-            photo="",  # Photo field added but empty for now
-            file_path=filepath,  
-            summary="Processing summary..."
-        )
+        if file:
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
 
-        thread = threading.Thread(
-            target=generate_summary_in_background,
-            args=(app, resume_id, filepath, name)
-        )
-        thread.start()
+            # Extract text and generate summary
+            resume_text = get_text_from_resume(file_path)
+            summary = ""
 
-        flash("Resume uploaded successfully!", "success")
-        return redirect(url_for("home"))
+            if resume_text:
+                try:
+                    summary = create_resume_summary(resume_text)
+                except Exception as e:
+                    print(f"Summary generation failed: {e}")
+                    summary = "Summary generation failed. Please check resume file."
+            else:
+                summary = "Could not extract text from resume. Please check file format."
+
+            # Add to database
+            add_resume(name, email, phone, "", file_path, summary)
+
+            flash("Resume submitted successfully!")
+            return redirect(url_for("home"))
 
     return render_template("index.html")
 
@@ -282,6 +292,13 @@ def serve_upload(filename):
 def api_get_matches(job_id):
     matches = get_job_matches(job_id)
     return jsonify(matches)
+
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)
+
 
 
 # =========================

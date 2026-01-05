@@ -182,11 +182,17 @@ def admin_dashboard():
     # Get all resumes (no search functionality)
     resumes = get_all_resumes()
     
+    print(f"DEBUG: Total resumes found: {len(resumes)}")
+    for r in resumes:
+        print(f"DEBUG: Resume - ID: {r[0]}, Name: {r[1]}")
+    
     # Pagination logic
     total = len(resumes)
     start = (page - 1) * per_page
     end = start + per_page
     paginated_resumes = resumes[start:end]
+    
+    print(f"DEBUG: Paginated resumes: {len(paginated_resumes)}")
     
     # Calculate pagination info
     has_prev = page > 1

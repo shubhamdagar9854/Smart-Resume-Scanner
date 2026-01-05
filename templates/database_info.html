@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Info - Resume Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin_dashboard.css') }}">
+</head>
+<body>
+    <div class="admin-container">
+        <header>
+            <h1>🗄️ Database Information</h1>
+            <nav>
+                <a href="{{ url_for('admin_dashboard') }}">📊 Dashboard</a>
+                <a href="{{ url_for('admin_jobs') }}">🔍 Jobs</a>
+                <a href="{{ url_for('admin_logout') }}">🚪 Logout</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="database-stats">
+                <h2>📊 Database Statistics</h2>
+                
+                <div class="stat-card">
+                    <h3>Total Resumes</h3>
+                    <div class="stat-number">{{ resumes|length }}</div>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Database Status</h3>
+                    <div class="stat-status">✅ Active</div>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Storage Location</h3>
+                    <div class="stat-location">Render Cloud Storage</div>
+                </div>
+            </div>
+
+            <div class="resumes-table">
+                <h2>📋 All Resumes in Database</h2>
+                
+                {% if resumes %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>File Path</th>
+                                <th>Summary Length</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for resume in resumes %}
+                            <tr>
+                                <td>{{ resume[0] }}</td>
+                                <td>{{ resume[1] }}</td>
+                                <td>{{ resume[2] }}</td>
+                                <td>{{ resume[3] or 'Not provided' }}</td>
+                                <td>{{ resume[5] or 'No file' }}</td>
+                                <td>{{ resume[6]|length if resume[6] else 0 }} chars</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="empty-state">
+                        <h3>📭 No resumes found in database</h3>
+                        <p>Database is empty. Wait for users to upload resumes.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="database-info">
+                <h2>ℹ️ Database Information</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <strong>Database Type:</strong> SQLite
+                    </div>
+                    <div class="info-item">
+                        <strong>Storage:</strong> Render Persistent Storage
+                    </div>
+                    <div class="info-item">
+                        <strong>Location:</strong> /opt/render/project/src/resumes.db
+                    </div>
+                    <div class="info-item">
+                        <strong>Sync Status:</strong> ✅ Real-time across all devices
+                    </div>
+                    <div class="info-item">
+                        <strong>Backup:</strong> Render automatic backup
+                    </div>
+                    <div class="info-item">
+                        <strong>Access:</strong> All users share same database
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

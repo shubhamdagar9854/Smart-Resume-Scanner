@@ -293,6 +293,17 @@ def serve_upload(filename):
         return redirect(url_for("admin_dashboard"))
 
 
+@app.route("/admin/database-info")
+def admin_database_info():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+    
+    from database import get_all_resumes
+    resumes = get_all_resumes()
+    
+    return render_template("database_info.html", resumes=resumes)
+
+
 @app.route("/api/get_matches/<int:job_id>")
 def api_get_matches(job_id):
     matches = get_job_matches(job_id)

@@ -83,8 +83,12 @@ def generate_summary_in_background(app, resume_id, filepath, name):
 # ROUTES
 # =========================
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/")
 def home():
+    return render_template("index.html")
+
+@app.route("/", methods=["POST"])
+def home_post():
     if request.method == "POST":
         name = request.form.get("name")
         email = request.form.get("email")

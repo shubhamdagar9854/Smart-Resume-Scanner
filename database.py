@@ -1,35 +1,14 @@
 import sqlite3
 import os
-import mysql.connector
-from mysql.connector import Error
 import json
 
 # Database Configuration
 DB_NAME = "resumes.db"
 
-# MySQL Configuration (for Railway)
-MYSQL_CONFIG = {
-    'host': os.getenv('MYSQL_HOST', 'shortline.proxy.rlwy.net'),
-    'port': int(os.getenv('MYSQL_PORT', 50321)),
-    'user': os.getenv('MYSQL_USER', 'root'),
-    'password': os.getenv('MYSQL_PASSWORD', ''),
-    'database': os.getenv('MYSQL_DATABASE', 'railway')
-}
-
-# Use MySQL if environment variables are set, otherwise use SQLite
-USE_MYSQL = os.getenv('MYSQL_HOST') is not None
-
+# Use SQLite for now (MySQL setup later)
 def get_connection():
-    """Get database connection (MySQL or SQLite)"""
-    if USE_MYSQL:
-        try:
-            return mysql.connector.connect(**MYSQL_CONFIG)
-        except Error as e:
-            print(f"MySQL Error: {e}")
-            print("Falling back to SQLite")
-            return sqlite3.connect(DB_NAME)
-    else:
-        return sqlite3.connect(DB_NAME)
+    """Get database connection (SQLite for now)"""
+    return sqlite3.connect(DB_NAME)
 
 # --- INITIALIZE DATABASE ---
 def init_db():

@@ -189,6 +189,10 @@ def admin_dashboard():
     page = request.args.get('page', 1, type=int)
     per_page = 5
     
+    # Force page 1 if no page parameter or invalid page
+    if page < 1:
+        page = 1
+    
     # Get all resumes (no search functionality)
     resumes = get_all_resumes()
     
@@ -202,7 +206,10 @@ def admin_dashboard():
     end = start + per_page
     paginated_resumes = resumes[start:end]
     
+    print(f"DEBUG: Page {page}, Start: {start}, End: {end}")
     print(f"DEBUG: Paginated resumes: {len(paginated_resumes)}")
+    for r in paginated_resumes:
+        print(f"DEBUG: Paginated Resume - ID: {r[0]}, Name: {r[1]}")
     
     # Calculate pagination info
     has_prev = page > 1

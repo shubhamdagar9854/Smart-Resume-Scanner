@@ -3,6 +3,9 @@ import re
 import PyPDF2
 import docx
 
+# Import RAG processor
+from rag_summary import create_rag_summary
+
 # =====================================================
 # ENV CHECK
 # =====================================================
@@ -124,50 +127,189 @@ def extract_projects_info(text):
 
 
 # =====================================================
-# RESUME SUMMARY (SLIGHTLY EXPANDED)
+# RESUME SUMMARY (DIRECT EXTRACTION)
 # =====================================================
+def extract_summary_from_text(text):
+    """Extract summary section directly from resume text"""
+    if not text:
+        return None
+    
+    print("=== DEBUG: Raw Resume Text ===")
+    print(text[:500] + "..." if len(text) > 500 else text)
+    print("\n=== DEBUG: Looking for Summary Section ===")
+    
+    # Look for summary section patterns - more comprehensive
+    summary_patterns = [
+        # Pattern 1: Summary heading followed by content until next heading
+        r'(?:summary|professional summary|profile|about|overview)[:\-]?\s*\n?\s*(.*?)(?=\n\s*[A-Z][a-zA-Z\s]*:|\n\s*[A-Z][a-zA-Z\s]+\n|\n\s*[A-Z][a-zA-Z\s]*$|\Z)',
+        # Pattern 2: Summary heading with colon
+        r'(?:summary|professional summary|profile|about|overview)[:\-]?\s*\n?\s*:\s*(.*?)(?=\n\s*[A-Z][a-zA-Z\s]*:|\n\s*[A-Z][a-zA-Z\s]+\n|\n\s*[A-Z][a-zA-Z\s]*$|\Z)',
+        # Pattern 3: Simple summary section
+        r'(?:summary|professional summary|profile|about|overview)[:\-]?\s*\n?\s*(.*?)(?:\n\n|\n[A-Z]|\Z)',
+    ]
+    
+    for i, pattern in enumerate(summary_patterns):
+        print(f"=== DEBUG: Trying Pattern {i+1} ===")
+        print(f"Pattern: {pattern}")
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            summary_text = match.group(1).strip()
+            # Clean up but preserve ALL formatting
+            summary_text = re.sub(r'\n+', '\n', summary_text)
+            # Remove trailing whitespace
+            summary_text = summary_text.rstrip()
+            print(f"=== DEBUG: Pattern {i+1} MATCHED! ===")
+            print(f"Extracted Summary: '{summary_text}'")
+            return summary_text
+        else:
+            print(f"=== DEBUG: Pattern {i+1} NO MATCH ===")
+    
+    print("=== DEBUG: No Summary Section Found - Trying Smart Fallback ===")
+    
+    # Smart fallback - look for multi-line summary paragraph
+    lines = text.split('\n')
+    summary_lines = []
+    found_start = False
+    
+    for i, line in enumerate(lines):
+        line = line.strip()
+        print(f"=== DEBUG: Line {i+1}: '{line}' (Length: {len(line)}) ===")
+        
+        # Skip first 6 lines (name, title, contact info)
+        if i < 6:
+            continue
+        
+        # Found first long line (40+ chars) - start collecting
+        if not found_start and len(line) >= 40:
+            found_start = True
+            summary_lines.append(line)
+            
+            # Capture next 4-5 lines (complete paragraph)
+            for j in range(i+1, min(i+6, len(lines))):
+                next_line = lines[j].strip()
+                
+                # Stop conditions
+                if len(next_line) < 15:  # Empty or too short
+                    break
+                if next_line.strip() in ['Senior Technical Lead', 'Work History', 'Experience', 'Education', 'Skills', 'Projects', 'Certifications', 'Employment', 'Objective', 'Profile', 'About']:  # Section headings
+                    break
+                if next_line.endswith(':'):  # Section heading with colon
+                    break
+                
+                # Valid continuation line - add it
+                summary_lines.append(next_line)
+            
+            # Return combined paragraph
+            if summary_lines:
+                complete_summary = ' '.join(summary_lines)
+                print(f"=== DEBUG: Multi-line Summary Found ===")
+                print(f"Complete Summary: '{complete_summary}'")
+                return complete_summary
+            break
+    
+    print("=== DEBUG: No Summary Found ===")
+    return None
+
 def create_resume_summary(text):
-    if not text or len(text.strip()) < 20:
-        return "• No valid resume content found"
+    import ollama
+    prompt = f'''
+    Summarize this resume into exactly 4-5 bullet points. 
+    STRICT RULES:
+    - Start every line with the '•' symbol.
+    - Each bullet must be on a NEW LINE.
+    - Keep it short and professional.
+    FORMAT EXAMPLE:
+    • Role: Senior Developer with 9+ years exp.
+    • Skills: Java, Spring Boot, gRPC.
+    • Ratings: Java ●●●●●, SQL ●●●●○.
+    • Impact: Led IRx platform development and managed 8+ members.
+    RESUME TEXT:
+    {text[:1200]}
+    '''
+    try:
+        response = ollama.generate(model='tinyllama', prompt=prompt, options={"num_predict": 200, "temperature": 0.2})
+        return response['response'].strip()
+    except:
+        return "• Error generating summary."
 
-    bullets = []
+def create_clean_ai_summary(text):
+    """Generate new professional resume summary"""
+    # Professional resume writer prompt with generation instructions
+    ai_prompt = f"""You are a professional resume writer.
 
-    tech = extract_tech_ratings(text)
-    domain = extract_domain_info(text)
-    projects = extract_projects_info(text)
+Your task is to GENERATE a new professional resume summary from the given resume text.
 
-    bullets.extend(tech)
+IMPORTANT:
+- Do NOT extract or reuse existing summary sentences from the resume.
+- Rewrite everything in your own professional language.
+- Do NOT output a paragraph.
 
-    if domain:
-        bullets.append(domain)
+STRICT FORMAT RULES:
+- Use bullet points (•) only.
+- Maximum 5 bullet points.
+- Professional, recruiter-ready tone.
+- Avoid generic phrases like "self-directed", "motivated", "results-oriented".
 
-    if projects:
-        bullets.append(projects)
+CONTENT RULES:
+- Use ONLY information present in the resume text.
+- If years of experience are mentioned, format as "X+ years".
+- If a domain/industry is mentioned (Healthcare, Enterprise, FinTech, etc.), include it naturally.
+- If skills are mentioned, group them under a line starting exactly with:
+  Technical Expertise:
+- If skill ratings exist (⭐ ★ ☆ ● ○ %), preserve them exactly.
 
-    text_lower = text.lower()
+MANDATORY OUTPUT STRUCTURE:
 
-    if 'experience' in text_lower:
-        bullets.append("💼 Demonstrated professional experience in relevant technical roles.")
+• Experienced software engineer with X+ years of hands-on experience in end-to-end product development.
+• Strong background in <domain if mentioned>.
+• Technical Expertise:
+  Skill1 ⭐⭐⭐⭐ | Skill2 ⭐⭐⭐⭐☆ | Skill3 ⭐⭐⭐⭐☆
+• Experienced in backend development, API design, system integration, and performance optimization.
+• Comfortable working in Agile teams and mentoring junior engineers.
 
-    if any(x in text_lower for x in ['developer', 'engineer']):
-        bullets.append("👨‍💻 Worked as a software developer/engineer on real-world applications.")
+OUTPUT RULES:
+- Output ONLY the bullet-point summary.
+- Do NOT include headings, explanations, or emojis.
+- Do NOT invent skills, ratings, or domains.
 
-    if any(x in text_lower for x in ['api', 'backend', 'server']):
-        bullets.append("🔗 Experience in backend development and API integration.")
+Resume Text:
+{text}"""
 
-    if any(x in text_lower for x in ['frontend', 'react', 'ui']):
-        bullets.append("🎨 Hands-on experience with frontend technologies and UI development.")
-
-    if any(x in text_lower for x in ['database', 'sql', 'mongodb']):
-        bullets.append("🗄️ Strong understanding of databases and data management.")
-
-    if any(x in text_lower for x in ['cloud', 'aws', 'deployment']):
-        bullets.append("☁️ Exposure to cloud platforms and application deployment.")
-
-    if len(bullets) < 5:
-        bullets.append("Skilled professional with a strong technical foundation.")
-
-    return "• " + "\n• ".join(bullets[:10])
+    try:
+        # Call AI model with generation instructions
+        response = ollama.generate(
+            model='llama3.1:8b',
+            prompt=ai_prompt,
+            options={
+                'temperature': 0.3,  # Slight creativity for professional writing
+                'top_p': 0.9,
+                'max_tokens': 250
+            }
+        )
+        
+        if response and 'response' in response:
+            ai_summary = response['response'].strip()
+            # Ensure bullet point format
+            if not ai_summary.startswith('•'):
+                # Force bullet point format
+                lines = ai_summary.split('\n')
+                formatted_lines = []
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith('•'):
+                        line = f"• {line}"
+                    formatted_lines.append(line)
+                ai_summary = '\n'.join(formatted_lines)
+            
+            # Clean up any conversational text
+            ai_summary = re.sub(r'^(Here is|This is|The following|Your summary).*?:', '', ai_summary, flags=re.IGNORECASE).strip()
+            return ai_summary
+        else:
+            return "• Experienced software engineer with relevant skills and experience."
+            
+    except Exception as e:
+        print(f"AI summary generation failed: {e}")
+        return "• Experienced software engineer with relevant skills and experience."
 
 
 # =====================================================

@@ -213,21 +213,48 @@ def extract_summary_from_text(text):
 def create_resume_summary(text):
     import ollama
     prompt = f'''
-    Summarize this resume into exactly 4-5 bullet points. 
-    STRICT RULES:
-    - Start every line with the '•' symbol.
-    - Each bullet must be on a NEW LINE.
-    - Keep it short and professional.
-    FORMAT EXAMPLE:
-    • Role: Senior Developer with 9+ years exp.
-    • Skills: Java, Spring Boot, gRPC.
-    • Ratings: Java ●●●●●, SQL ●●●●○.
-    • Impact: Led IRx platform development and managed 8+ members.
-    RESUME TEXT:
-    {text[:1200]}
-    '''
+You are a professional resume writer.
+
+Your task is to GENERATE a new professional resume summary from the given resume text.
+
+IMPORTANT:
+- Do NOT extract or reuse the existing summary sentences from the resume.
+- Rewrite everything in your own professional language.
+- Do NOT output a paragraph.
+
+STRICT FORMAT RULES:
+- Use bullet points (•) only.
+- Maximum 5 bullet points.
+- Professional, recruiter-ready tone.
+- Avoid generic phrases like "self-directed", "motivated", "results-oriented".
+
+CONTENT RULES:
+- Use ONLY information present in the resume text.
+- If years of experience are mentioned, format as "X+ years".
+- If a domain/industry is mentioned (Healthcare, Enterprise, FinTech, etc.), include it naturally.
+- If skills are mentioned, group them under a line starting exactly with:
+  Technical Expertise:
+- If skill ratings exist (⭐ ★ ☆ ● ○ %), preserve them exactly.
+- Do NOT invent skills, ratings, or domains.
+
+MANDATORY OUTPUT STRUCTURE:
+
+• Experienced software engineer with X+ years of hands-on experience in end-to-end product development.
+• Strong background in <domain if mentioned>.
+• Technical Expertise:
+  Skill1 ⭐⭐⭐⭐⭐ | Skill2 ⭐⭐⭐⭐☆ | Skill3 ⭐⭐⭐⭐☆
+• Experienced in backend development, API design, system integration, and performance optimization.
+• Comfortable working in Agile teams and mentoring junior engineers.
+
+OUTPUT RULES:
+- Output ONLY the bullet-point summary.
+- Do NOT include headings, explanations, or emojis.
+
+RESUME TEXT:
+{text[:1200]}
+'''
     try:
-        response = ollama.generate(model='tinyllama', prompt=prompt, options={"num_predict": 200, "temperature": 0.2})
+        response = ollama.generate(model='llama3.2:1b', prompt=prompt, options={"num_predict": 200, "temperature": 0.2})
         return response['response'].strip()
     except:
         return "• Error generating summary."

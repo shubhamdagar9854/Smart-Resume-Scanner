@@ -212,12 +212,31 @@ def extract_summary_from_text(text):
 
 def create_resume_summary(text):
     import ollama
+    
+    # Validate resume text before processing
+    if not text or len(text.strip()) < 50:
+        return "• Resume content too brief for detailed summary generation."
+    
+    # Extract key information for validation
+    text_lower = text.lower()
+    has_skills = any(skill in text_lower for skill in ['python', 'java', 'javascript', 'react', 'node', 'spring', 'flask'])
+    has_experience = any(exp in text_lower for exp in ['experience', 'years', 'worked', 'developed', 'managed', 'led'])
+    has_projects = any(proj in text_lower for proj in ['project', 'application', 'system', 'platform'])
+    has_ratings = any(rating in text for rating in ['⭐', '★', '☆', '●', '○', '%'])
+    
+    # Enhanced prompt with deployment safety
     prompt = f'''
 You are an expert resume editor.
 
 Your task is to convert the given resume text into a PROFESSIONAL RESUME SUMMARY.
 
 THIS IS A STRICT, RULE-BOUND TASK.
+
+DEPLOYMENT SAFETY CHECKS:
+- Resume contains skills: {has_skills}
+- Resume contains experience: {has_experience}
+- Resume contains projects: {has_projects}
+- Resume contains ratings: {has_ratings}
 
 ABSOLUTE NON-NEGOTIABLE RULES:
 1. You MUST scan the resume text for skill ratings.
@@ -232,9 +251,8 @@ ABSOLUTE NON-NEGOTIABLE RULES:
 4. If you fail to include existing ratings, the output is INVALID.
 
 FORMAT REQUIREMENTS:
-- Output ONLY a resume summary.
-- Use bullet points (•) only.
-- 4 to 10 bullet Points total.
+- Output MUST be bullet points only (•).
+- 4 to 10 bullet points total.
 - Each bullet must be one sentence.
 - No headings except the exact line:
   Technical Expertise:
@@ -248,21 +266,99 @@ CONTENT RULES:
 
 STYLE RULES:
 - Professional, human, resume-ready tone.
-- No generic buzzwords unless already present in resume.
+- No generic buzzwords unless already present in the resume.
 - No emojis, no explanations, no extra text.
 
 CRITICAL OUTPUT CHECK:
 - If ratings exist in resume → summary MUST show them.
 - If ratings do not exist → DO NOT add any ratings.
 
+ANTI-GENERIC GUARDRAILS:
+- NEVER output: "Experienced professional with relevant skills and experience"
+- NEVER output: "Skilled professional with a strong background"
+- NEVER output: "Motivated individual with experience"
+- You MUST extract concrete details from the provided text
+- You MUST generate at least 4 meaningful bullet points
+
 RESUME TEXT:
-{text[:1200]}
+{text[:1500]}
 '''
+    
     try:
-        response = ollama.generate(model='llama3.2:1b', prompt=prompt, options={"num_predict": 200, "temperature": 0.2})
-        return response['response'].strip()
-    except:
-        return "• Error generating summary."
+        # Try with higher token limit for production
+        response = ollama.generate(
+            model='llama3.2:1b', 
+            prompt=prompt, 
+            options={
+                "num_predict": 300,  # Increased from 200
+                "temperature": 0.1,  # Lower for more deterministic output
+                "top_p": 0.8,
+                "repeat_penalty": 1.1
+            }
+        )
+        summary = response['response'].strip()
+        
+        # Validate output quality
+        if len(summary) < 100 or any(generic in summary.lower() for generic in [
+            "experienced professional with relevant skills",
+            "skilled professional with a strong background",
+            "motivated individual with experience"
+        ]):
+            # Fallback to stricter prompt
+            return create_fallback_summary(text)
+        
+        return summary
+        
+    except Exception as e:
+        print(f"Primary summary generation failed: {e}")
+        return create_fallback_summary(text)
+
+def create_fallback_summary(text):
+    """Rule-based fallback for production safety"""
+    import re
+    
+    # Extract concrete information
+    lines = text.split('\n')
+    summary_points = []
+    
+    # Look for experience years
+    exp_match = re.search(r'(\d+)\+?\s*years?', text, re.IGNORECASE)
+    if exp_match:
+        summary_points.append(f"• Professional with {exp_match.group(1)}+ years of relevant experience.")
+    
+    # Look for technical skills
+    tech_skills = []
+    for skill in ['Java', 'Python', 'JavaScript', 'React', 'Node.js', 'Spring Boot', 'Flask', 'SQL']:
+        if skill.lower() in text.lower():
+            tech_skills.append(skill)
+    
+    if tech_skills:
+        summary_points.append(f"• Proficient in {', '.join(tech_skills[:4])}.")
+    
+    # Look for project keywords
+    if 'project' in text.lower():
+        summary_points.append("• Experience in project development and implementation.")
+    
+    # Look for leadership
+    if any(word in text.lower() for word in ['led', 'managed', 'team', 'lead']):
+        summary_points.append("• Demonstrated leadership and team management capabilities.")
+    
+    # Look for education
+    if any(word in text.lower() for word in ['bachelor', 'master', 'degree', 'b.tech', 'm.tech']):
+        summary_points.append("• Strong educational background in technology field.")
+    
+    # Ensure minimum 4 points
+    while len(summary_points) < 4:
+        if len(summary_points) == 0:
+            summary_points.append("• Technology professional with diverse technical skills.")
+        elif len(summary_points) == 1:
+            summary_points.append("• Experience in software development and system design.")
+        elif len(summary_points) == 2:
+            summary_points.append("• Strong problem-solving and analytical abilities.")
+        else:
+            summary_points.append("• Committed to continuous learning and professional growth.")
+    
+    return '\n'.join(summary_points[:10])
 
 def create_clean_ai_summary(text):
     """Generate new professional resume summary"""

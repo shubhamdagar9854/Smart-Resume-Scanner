@@ -315,9 +315,9 @@ RESUME TEXT:
             "motivated individual with experience"
         ]):
             print("DEBUG: Generic output detected, using fallback")
-            return create_fallback_summary(text)
+            return sanitize_summary(summary, text)
         
-        return summary
+        return sanitize_summary(summary, text)
         
     except Exception as e:
         print(f"DEBUG: Primary summary generation failed: {e}")
@@ -357,6 +357,13 @@ def create_fallback_summary(text):
     if any(word in text.lower() for word in ['bachelor', 'master', 'degree', 'b.tech', 'm.tech']):
         summary_points.append("• Strong educational background in technology field.")
     
+    # Extract meaningful lines from resume
+    for line in lines:
+        line = line.strip()
+        if len(line) > 40 and not line.isupper() and not any(skip in line.lower() for skip in ['email', 'phone', 'contact', 'address', '@', 'http', 'www', 'linkedin']):
+            if len(summary_points) < 6:
+                summary_points.append(f"• {line}")
+    
     # Ensure minimum 4 points
     while len(summary_points) < 4:
         if len(summary_points) == 0:
@@ -369,6 +376,21 @@ def create_fallback_summary(text):
             summary_points.append("• Committed to continuous learning and professional growth.")
     
     return '\n'.join(summary_points[:10])
+
+def sanitize_summary(summary, resume_text):
+    """Remove generic summaries and replace with rule-based fallback"""
+    bad_phrases = [
+        "experienced professional with relevant skills and experience",
+        "skilled professional with relevant experience",
+        "motivated professional",
+        "experienced software engineer with relevant skills and experience"
+    ]
+    
+    if not summary or any(bad in summary.lower() for bad in bad_phrases):
+        print("DEBUG: Generic summary detected, using rule-based fallback")
+        return create_fallback_summary(resume_text)
+    
+    return summary
 
 def create_clean_ai_summary(text):
     """Generate new professional resume summary"""

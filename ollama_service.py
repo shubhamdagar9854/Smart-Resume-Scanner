@@ -3,15 +3,12 @@ import re
 import PyPDF2
 import docx
 
-# Import RAG processor
 from rag_summary import create_rag_summary
 
 # =====================================================
 # ENV CHECK
 # =====================================================
-IS_PRODUCTION = os.environ.get('RENDER') or not os.system(
-    'which ollama > /dev/null 2>&1'
-) == 0
+IS_PRODUCTION = bool(os.environ.get("RENDER"))
 
 if not IS_PRODUCTION:
     try:
@@ -24,14 +21,12 @@ else:
 
 
 # =====================================================
-# SAFETY HELPERS (NO PHONE / EMAIL EVER)
+# SAFETY HELPERS
 # =====================================================
 def contains_phone_or_email(text: str) -> bool:
-    if re.search(r'\b\d{8,}\b', text):  # 8+ digit numbers
+    if re.search(r"\b\d{8,}\b", text):
         return True
-    if re.search(r'\w+@\w+\.\w+', text):
-        return True
-    if any(x in text.lower() for x in ['gmail', 'yahoo', 'hotmail', '@']):
+    if re.search(r"\w+@\w+\.\w+", text):
         return True
     return False
 
@@ -40,17 +35,17 @@ def contains_phone_or_email(text: str) -> bool:
 # RESUME TEXT EXTRACTION
 # =====================================================
 def get_text_from_resume(file_path):
-    text = ""
     try:
-        if file_path.endswith('.pdf'):
-            with open(file_path, 'rb') as f:
+        if file_path.endswith(".pdf"):
+            text = ""
+            with open(file_path, "rb") as f:
                 pdf = PyPDF2.PdfReader(f)
                 for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
+                    if page.extract_text():
+                        text += page.extract_text() + "\n"
+            return text.strip() or None
 
-        elif file_path.endswith('.docx'):
+        if file_path.endswith(".docx"):
             doc = docx.Document(file_path)
             parts = []
 
@@ -64,449 +59,125 @@ def get_text_from_resume(file_path):
                         if cell.text.strip():
                             parts.append(cell.text.strip())
 
-            text = "\n".join(parts)
-
-        return text if text.strip() else None
+            return "\n".join(parts) or None
 
     except Exception:
         return None
 
 
 # =====================================================
-# TECH STACK RATINGS (FIXED & SAFE)
+# SANITIZER
 # =====================================================
-def extract_tech_ratings(text):
-    tech_ratings = []
-
-    ALLOWED_TECH = [
-        'python', 'java', 'javascript', 'react', 'node', 'angular', 'vue',
-        'django', 'flask', 'sql', 'mysql', 'mongodb', 'aws',
-        'docker', 'git', 'api', 'html', 'css'
+def sanitize_summary(summary, resume_text):
+    bad_phrases = [
+        "experienced professional with relevant skills",
+        "skilled professional",
+        "motivated professional",
     ]
 
-    pattern = r'(python|java|javascript|react|node|angular|vue|django|flask|sql|mysql|mongodb|aws|docker|git|html|css)\s*[:\-]?\s*([⭐★☆●○•\d]{1,10})'
+    if not summary or any(b in summary.lower() for b in bad_phrases):
+        return create_fallback_summary(resume_text)
 
-    matches = re.findall(pattern, text, re.IGNORECASE)
-
-    for tech, rating in matches:
-        tech = tech.lower().strip()
-        rating = rating.strip()
-
-        combined = f"{tech} {rating}"
-
-        # 🔒 HARD BLOCK
-        if contains_phone_or_email(combined):
-            continue
-
-        if tech not in ALLOWED_TECH:
-            continue
-
-        tech_ratings.append(f"📊 {tech.title()}: {rating}")
-
-    return tech_ratings[:3]
+    return summary
 
 
 # =====================================================
-# DOMAIN EXTRACTION
+# MAIN SUMMARY GENERATOR
 # =====================================================
-def extract_domain_info(text):
-    domains = [
-        'fintech', 'healthcare', 'education',
-        'ecommerce', 'banking', 'startup'
-    ]
-    text_lower = text.lower()
-
-    for d in domains:
-        if d in text_lower:
-            return f"🏢 Domain Expertise: {d.title()} industry"
-
-    return None
-
-
-# =====================================================
-# PROJECT EXTRACTION
-# =====================================================
-def extract_projects_info(text):
-    if 'project' in text.lower():
-        return "🚀 Projects: Hands-on project development experience"
-    return None
-
-
-# =====================================================
-# RESUME SUMMARY (DIRECT EXTRACTION)
-# =====================================================
-def extract_summary_from_text(text):
-    """Extract summary section directly from resume text"""
-    if not text:
-        return None
-    
-    print("=== DEBUG: Raw Resume Text ===")
-    print(text[:500] + "..." if len(text) > 500 else text)
-    print("\n=== DEBUG: Looking for Summary Section ===")
-    
-    # Look for summary section patterns - more comprehensive
-    summary_patterns = [
-        # Pattern 1: Summary heading followed by content until next heading
-        r'(?:summary|professional summary|profile|about|overview)[:\-]?\s*\n?\s*(.*?)(?=\n\s*[A-Z][a-zA-Z\s]*:|\n\s*[A-Z][a-zA-Z\s]+\n|\n\s*[A-Z][a-zA-Z\s]*$|\Z)',
-        # Pattern 2: Summary heading with colon
-        r'(?:summary|professional summary|profile|about|overview)[:\-]?\s*\n?\s*:\s*(.*?)(?=\n\s*[A-Z][a-zA-Z\s]*:|\n\s*[A-Z][a-zA-Z\s]+\n|\n\s*[A-Z][a-zA-Z\s]*$|\Z)',
-        # Pattern 3: Simple summary section
-        r'(?:summary|professional summary|profile|about|overview)[:\-]?\s*\n?\s*(.*?)(?:\n\n|\n[A-Z]|\Z)',
-    ]
-    
-    for i, pattern in enumerate(summary_patterns):
-        print(f"=== DEBUG: Trying Pattern {i+1} ===")
-        print(f"Pattern: {pattern}")
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if match:
-            summary_text = match.group(1).strip()
-            # Clean up but preserve ALL formatting
-            summary_text = re.sub(r'\n+', '\n', summary_text)
-            # Remove trailing whitespace
-            summary_text = summary_text.rstrip()
-            print(f"=== DEBUG: Pattern {i+1} MATCHED! ===")
-            print(f"Extracted Summary: '{summary_text}'")
-            return summary_text
-        else:
-            print(f"=== DEBUG: Pattern {i+1} NO MATCH ===")
-    
-    print("=== DEBUG: No Summary Section Found - Trying Smart Fallback ===")
-    
-    # Smart fallback - look for multi-line summary paragraph
-    lines = text.split('\n')
-    summary_lines = []
-    found_start = False
-    
-    for i, line in enumerate(lines):
-        line = line.strip()
-        print(f"=== DEBUG: Line {i+1}: '{line}' (Length: {len(line)}) ===")
-        
-        # Skip first 6 lines (name, title, contact info)
-        if i < 6:
-            continue
-        
-        # Found first long line (40+ chars) - start collecting
-        if not found_start and len(line) >= 40:
-            found_start = True
-            summary_lines.append(line)
-            
-            # Capture next 4-5 lines (complete paragraph)
-            for j in range(i+1, min(i+6, len(lines))):
-                next_line = lines[j].strip()
-                
-                # Stop conditions
-                if len(next_line) < 15:  # Empty or too short
-                    break
-                if next_line.strip() in ['Senior Technical Lead', 'Work History', 'Experience', 'Education', 'Skills', 'Projects', 'Certifications', 'Employment', 'Objective', 'Profile', 'About']:  # Section headings
-                    break
-                if next_line.endswith(':'):  # Section heading with colon
-                    break
-                
-                # Valid continuation line - add it
-                summary_lines.append(next_line)
-            
-            # Return combined paragraph
-            if summary_lines:
-                complete_summary = ' '.join(summary_lines)
-                print(f"=== DEBUG: Multi-line Summary Found ===")
-                print(f"Complete Summary: '{complete_summary}'")
-                return complete_summary
-            break
-    
-    print("=== DEBUG: No Summary Found ===")
-    return None
-
 def create_resume_summary(text):
-    # Always validate resume text first
     if not text or len(text.strip()) < 50:
-        return "• Resume content too brief for detailed summary generation."
-    
-    # Use rule-based fallback if Ollama not available
+        return "• Resume content too brief for summary generation."
+
     if not OLLAMA_AVAILABLE:
-        print("DEBUG: Ollama not available, using rule-based summary")
         return create_fallback_summary(text)
-    
-    # Try AI generation with safety fallback
+
     try:
-        # Extract key information for validation
-        text_lower = text.lower()
-        has_skills = any(skill in text_lower for skill in ['python', 'java', 'javascript', 'react', 'node', 'spring', 'flask'])
-        has_experience = any(exp in text_lower for exp in ['experience', 'years', 'worked', 'developed', 'managed', 'led'])
-        has_projects = any(proj in text_lower for proj in ['project', 'application', 'system', 'platform'])
-        has_ratings = any(rating in text for rating in ['⭐', '★', '☆', '●', '○', '%'])
-        
-        # Enhanced prompt with deployment safety
-        prompt = f'''
-You are an expert resume editor.
+        prompt = f"""
+You are a professional resume writer with real recruiting experience.
 
-Your task is to convert given resume text into a PROFESSIONAL RESUME SUMMARY.
+Generate a PROFESSIONAL RESUME SUMMARY strictly from the resume below.
 
-THIS IS A STRICT, RULE-BOUND TASK.
+RULES:
+- Bullet points only
+- Minimum 5 bullets
+- At least:
+  • 2 project bullets
+  • 2 skill bullets
+  • 1 experience / responsibility bullet
+- No generic phrases
+- No contact info
+- Preserve skill ratings if present
 
-DEPLOYMENT SAFETY CHECKS:
-- Resume contains skills: {has_skills}
-- Resume contains experience: {has_experience}
-- Resume contains projects: {has_projects}
-- Resume contains ratings: {has_ratings}
-
-ABSOLUTE NON-NEGOTIABLE RULES:
-1. You MUST scan resume text for skill ratings.
-2. Skill ratings include:
-   - Stars (⭐ ★ ☆)
-   - Dots (● ○)
-   - Percentages (e.g., 80%)
-   - Words like Excellent / Good / Beginner
-3. IF ANY skill rating is present in resume:
-   - You MUST include those skills WITH THE SAME RATINGS in the summary.
-   - You MUST preserve the exact symbols and rating format.
-4. If you fail to include existing ratings, the output is INVALID.
-
-FORMAT REQUIREMENTS:
-- Output MUST be bullet points only (•).
-- 4 to 10 bullet points total.
-- Each bullet must be one sentence.
-- No headings except the exact line:
-  Technical Expertise:
-- The Technical Expertise line MUST appear if ratings exist.
-
-CONTENT RULES:
-- Do NOT invent or assume any skills, ratings, companies, or experience.
-- Do NOT remove existing important information.
-- Do NOT list skills without ratings if ratings exist.
-- Do NOT rewrite the resume as sections.
-
-STYLE RULES:
-- Professional, human, resume-ready tone.
-- No generic buzzwords unless already present in the resume.
-- No emojis, no explanations, no extra text.
-
-CRITICAL OUTPUT CHECK:
-- If ratings exist in the resume → summary MUST show them.
-- If ratings do not exist → DO NOT add any ratings.
-
-ANTI-GENERIC GUARDRAILS:
-- NEVER output: "Experienced professional with relevant skills and experience"
-- NEVER output: "Skilled professional with a strong background"
-- NEVER output: "Motivated individual with experience"
-- You MUST extract concrete details from the provided text
-- You MUST generate at least 4 meaningful bullet points
+NEVER output:
+"Experienced professional with relevant skills and experience"
 
 RESUME TEXT:
 {text[:1500]}
-'''
-        
-        # Try AI generation
+"""
+
         response = ollama.generate(
-            model='llama3.2:1b', 
-            prompt=prompt, 
+            model="llama3.2:1b",
+            prompt=prompt,
             options={
                 "num_predict": 300,
                 "temperature": 0.1,
                 "top_p": 0.8,
-                "repeat_penalty": 1.1
-            }
+                "repeat_penalty": 1.1,
+            },
         )
-        summary = response['response'].strip()
-        
-        # Validate output quality
-        if len(summary) < 100 or any(generic in summary.lower() for generic in [
-            "experienced professional with relevant skills",
-            "skilled professional with a strong background",
-            "motivated individual with experience"
-        ]):
-            print("DEBUG: Generic output detected, using fallback")
-            return sanitize_summary(summary, text)
-        
+
+        summary = response.get("response", "").strip()
         return sanitize_summary(summary, text)
-        
+
     except Exception as e:
-        print(f"DEBUG: Primary summary generation failed: {e}")
+        print("DEBUG: AI generation failed:", e)
         return create_fallback_summary(text)
 
+
+# =====================================================
+# FALLBACK SUMMARY (SAFE)
+# =====================================================
 def create_fallback_summary(text):
-    """Rule-based fallback for production safety"""
-    import re
-    
-    # Extract concrete information
-    lines = text.split('\n')
-    summary_points = []
-    
-    # Look for experience years
-    exp_match = re.search(r'(\d+)\+?\s*years?', text, re.IGNORECASE)
-    if exp_match:
-        summary_points.append(f"• Professional with {exp_match.group(1)}+ years of relevant experience.")
-    
-    # Look for technical skills
-    tech_skills = []
-    for skill in ['Java', 'Python', 'JavaScript', 'React', 'Node.js', 'Spring Boot', 'Flask', 'SQL']:
-        if skill.lower() in text.lower():
-            tech_skills.append(skill)
-    
-    if tech_skills:
-        summary_points.append(f"• Proficient in {', '.join(tech_skills[:4])}.")
-    
-    # Look for project keywords
-    if 'project' in text.lower():
-        summary_points.append("• Experience in project development and implementation.")
-    
-    # Look for leadership
-    if any(word in text.lower() for word in ['led', 'managed', 'team', 'lead']):
-        summary_points.append("• Demonstrated leadership and team management capabilities.")
-    
-    # Look for education
-    if any(word in text.lower() for word in ['bachelor', 'master', 'degree', 'b.tech', 'm.tech']):
-        summary_points.append("• Strong educational background in technology field.")
-    
-    # Extract meaningful lines from resume
-    for line in lines:
-        line = line.strip()
-        if len(line) > 40 and not line.isupper() and not any(skip in line.lower() for skip in ['email', 'phone', 'contact', 'address', '@', 'http', 'www', 'linkedin']):
-            if len(summary_points) < 6:
-                summary_points.append(f"• {line}")
-    
-    # Ensure minimum 4 points
-    while len(summary_points) < 4:
-        if len(summary_points) == 0:
-            summary_points.append("• Technology professional with diverse technical skills.")
-        elif len(summary_points) == 1:
-            summary_points.append("• Experience in software development and system design.")
-        elif len(summary_points) == 2:
-            summary_points.append("• Strong problem-solving and analytical abilities.")
-        else:
-            summary_points.append("• Committed to continuous learning and professional growth.")
-    
-    return '\n'.join(summary_points[:10])
+    lines = text.split("\n")
+    bullets = []
 
-def sanitize_summary(summary, resume_text):
-    """Remove generic summaries and replace with rule-based fallback"""
-    bad_phrases = [
-        "experienced professional with relevant skills and experience",
-        "skilled professional with relevant experience",
-        "motivated professional",
-        "experienced software engineer with relevant skills and experience"
-    ]
-    
-    if not summary or any(bad in summary.lower() for bad in bad_phrases):
-        print("DEBUG: Generic summary detected, using rule-based fallback")
-        return create_fallback_summary(resume_text)
-    
-    return summary
+    if re.search(r"\d+\+?\s*years?", text, re.I):
+        bullets.append("• Experience across multiple software development cycles and real-world implementations.")
 
-def create_clean_ai_summary(text):
-    """Generate new professional resume summary"""
-    # Professional resume writer prompt with generation instructions
-    ai_prompt = f"""You are a professional resume writer.
+    techs = ["Java", "Python", "Flask", "Spring", "SQL", "JavaScript"]
+    used = [t for t in techs if t.lower() in text.lower()]
+    if used:
+        bullets.append(f"• Hands-on experience working with technologies such as {', '.join(used[:4])}.")
 
-Your task is to GENERATE a new professional resume summary from the given resume text.
+    project_lines = [l for l in lines if "project" in l.lower() or "application" in l.lower()]
+    for pl in project_lines[:2]:
+        bullets.append(f"• {pl.strip()}")
 
-IMPORTANT:
-- Do NOT extract or reuse existing summary sentences from the resume.
-- Rewrite everything in your own professional language.
-- Do NOT output a paragraph.
+    if len(bullets) < 5:
+        bullets.append("• Actively contributed to development tasks, debugging, and feature enhancements.")
 
-STRICT FORMAT RULES:
-- Use bullet points (•) only.
-- Maximum 5 bullet points.
-- Professional, recruiter-ready tone.
-- Avoid generic phrases like "self-directed", "motivated", "results-oriented".
-
-CONTENT RULES:
-- Use ONLY information present in the resume text.
-- If years of experience are mentioned, format as "X+ years".
-- If a domain/industry is mentioned (Healthcare, Enterprise, FinTech, etc.), include it naturally.
-- If skills are mentioned, group them under a line starting exactly with:
-  Technical Expertise:
-- If skill ratings exist (⭐ ★ ☆ ● ○ %), preserve them exactly.
-
-MANDATORY OUTPUT STRUCTURE:
-
-• Experienced software engineer with X+ years of hands-on experience in end-to-end product development.
-• Strong background in <domain if mentioned>.
-• Technical Expertise:
-  Skill1 ⭐⭐⭐⭐ | Skill2 ⭐⭐⭐⭐☆ | Skill3 ⭐⭐⭐⭐☆
-• Experienced in backend development, API design, system integration, and performance optimization.
-• Comfortable working in Agile teams and mentoring junior engineers.
-
-OUTPUT RULES:
-- Output ONLY the bullet-point summary.
-- Do NOT include headings, explanations, or emojis.
-- Do NOT invent skills, ratings, or domains.
-
-Resume Text:
-{text}"""
-
-    try:
-        # Call AI model with generation instructions
-        response = ollama.generate(
-            model='llama3.1:8b',
-            prompt=ai_prompt,
-            options={
-                'temperature': 0.3,  # Slight creativity for professional writing
-                'top_p': 0.9,
-                'max_tokens': 250
-            }
-        )
-        
-        if response and 'response' in response:
-            ai_summary = response['response'].strip()
-            # Ensure bullet point format
-            if not ai_summary.startswith('•'):
-                # Force bullet point format
-                lines = ai_summary.split('\n')
-                formatted_lines = []
-                for line in lines:
-                    line = line.strip()
-                    if line and not line.startswith('•'):
-                        line = f"• {line}"
-                    formatted_lines.append(line)
-                ai_summary = '\n'.join(formatted_lines)
-            
-            # Clean up any conversational text
-            ai_summary = re.sub(r'^(Here is|This is|The following|Your summary).*?:', '', ai_summary, flags=re.IGNORECASE).strip()
-            return ai_summary
-        else:
-            return "• Experienced software engineer with relevant skills and experience."
-            
-    except Exception as e:
-        print(f"AI summary generation failed: {e}")
-        return "• Experienced software engineer with relevant skills and experience."
+    return "\n".join(bullets[:7])
 
 
 # =====================================================
-# JOB MATCHING
+# JOB MATCHING (UNCHANGED)
 # =====================================================
 def match_resume_with_job(resume_summary, job_title, job_description):
-
     if IS_PRODUCTION:
         job_text = f"{job_title} {job_description}".lower()
         resume_text = resume_summary.lower()
 
-        keywords = [
-            'python', 'java', 'react', 'sql',
-            'aws', 'docker', 'git', 'agile',
-            'bsc', 'msc'
-        ]
-
+        keywords = ["python", "java", "react", "sql", "aws", "docker", "git"]
         matched = [k for k in keywords if k in job_text and k in resume_text]
-        percent = int((len(matched) / max(len(keywords), 1)) * 100)
 
+        percent = int((len(matched) / max(len(keywords), 1)) * 100)
         return f"Match: {percent}% | Skills: {', '.join(matched)}"
 
-    prompt = f"""
-    JOB TITLE: {job_title}
-    JOB DESCRIPTION: {job_description}
-
-    CANDIDATE SUMMARY:
-    {resume_summary}
-
-    Provide:
-    1. Match %
-    2. Key reasons
-    3. Final verdict
-    """
-
     try:
-        res = ollama.generate(model='llama3', prompt=prompt)
-        return res['response']
+        res = ollama.generate(
+            model="llama3",
+            prompt=f"JOB: {job_title}\n{job_description}\nCANDIDATE:\n{resume_summary}",
+        )
+        return res["response"]
     except Exception:
         return "AI matching failed"

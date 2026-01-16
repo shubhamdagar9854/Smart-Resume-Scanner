@@ -14,7 +14,13 @@ IS_PRODUCTION = os.environ.get('RENDER') or not os.system(
 ) == 0
 
 if not IS_PRODUCTION:
-    import ollama
+    try:
+        import ollama
+        OLLAMA_AVAILABLE = True
+    except ImportError:
+        OLLAMA_AVAILABLE = False
+else:
+    OLLAMA_AVAILABLE = False
 
 
 # =====================================================
@@ -211,24 +217,29 @@ def extract_summary_from_text(text):
     return None
 
 def create_resume_summary(text):
-    import ollama
-    
-    # Validate resume text before processing
+    # Always validate resume text first
     if not text or len(text.strip()) < 50:
         return "• Resume content too brief for detailed summary generation."
     
-    # Extract key information for validation
-    text_lower = text.lower()
-    has_skills = any(skill in text_lower for skill in ['python', 'java', 'javascript', 'react', 'node', 'spring', 'flask'])
-    has_experience = any(exp in text_lower for exp in ['experience', 'years', 'worked', 'developed', 'managed', 'led'])
-    has_projects = any(proj in text_lower for proj in ['project', 'application', 'system', 'platform'])
-    has_ratings = any(rating in text for rating in ['⭐', '★', '☆', '●', '○', '%'])
+    # Use rule-based fallback if Ollama not available
+    if not OLLAMA_AVAILABLE:
+        print("DEBUG: Ollama not available, using rule-based summary")
+        return create_fallback_summary(text)
     
-    # Enhanced prompt with deployment safety
-    prompt = f'''
+    # Try AI generation with safety fallback
+    try:
+        # Extract key information for validation
+        text_lower = text.lower()
+        has_skills = any(skill in text_lower for skill in ['python', 'java', 'javascript', 'react', 'node', 'spring', 'flask'])
+        has_experience = any(exp in text_lower for exp in ['experience', 'years', 'worked', 'developed', 'managed', 'led'])
+        has_projects = any(proj in text_lower for proj in ['project', 'application', 'system', 'platform'])
+        has_ratings = any(rating in text for rating in ['⭐', '★', '☆', '●', '○', '%'])
+        
+        # Enhanced prompt with deployment safety
+        prompt = f'''
 You are an expert resume editor.
 
-Your task is to convert the given resume text into a PROFESSIONAL RESUME SUMMARY.
+Your task is to convert given resume text into a PROFESSIONAL RESUME SUMMARY.
 
 THIS IS A STRICT, RULE-BOUND TASK.
 
@@ -239,13 +250,13 @@ DEPLOYMENT SAFETY CHECKS:
 - Resume contains ratings: {has_ratings}
 
 ABSOLUTE NON-NEGOTIABLE RULES:
-1. You MUST scan the resume text for skill ratings.
+1. You MUST scan resume text for skill ratings.
 2. Skill ratings include:
    - Stars (⭐ ★ ☆)
    - Dots (● ○)
    - Percentages (e.g., 80%)
    - Words like Excellent / Good / Beginner
-3. IF ANY skill rating is present in the resume:
+3. IF ANY skill rating is present in resume:
    - You MUST include those skills WITH THE SAME RATINGS in the summary.
    - You MUST preserve the exact symbols and rating format.
 4. If you fail to include existing ratings, the output is INVALID.
@@ -270,7 +281,7 @@ STYLE RULES:
 - No emojis, no explanations, no extra text.
 
 CRITICAL OUTPUT CHECK:
-- If ratings exist in resume → summary MUST show them.
+- If ratings exist in the resume → summary MUST show them.
 - If ratings do not exist → DO NOT add any ratings.
 
 ANTI-GENERIC GUARDRAILS:
@@ -283,15 +294,14 @@ ANTI-GENERIC GUARDRAILS:
 RESUME TEXT:
 {text[:1500]}
 '''
-    
-    try:
-        # Try with higher token limit for production
+        
+        # Try AI generation
         response = ollama.generate(
             model='llama3.2:1b', 
             prompt=prompt, 
             options={
-                "num_predict": 300,  # Increased from 200
-                "temperature": 0.1,  # Lower for more deterministic output
+                "num_predict": 300,
+                "temperature": 0.1,
                 "top_p": 0.8,
                 "repeat_penalty": 1.1
             }
@@ -304,13 +314,13 @@ RESUME TEXT:
             "skilled professional with a strong background",
             "motivated individual with experience"
         ]):
-            # Fallback to stricter prompt
+            print("DEBUG: Generic output detected, using fallback")
             return create_fallback_summary(text)
         
         return summary
         
     except Exception as e:
-        print(f"Primary summary generation failed: {e}")
+        print(f"DEBUG: Primary summary generation failed: {e}")
         return create_fallback_summary(text)
 
 def create_fallback_summary(text):

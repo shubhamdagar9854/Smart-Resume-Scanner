@@ -213,42 +213,47 @@ def extract_summary_from_text(text):
 def create_resume_summary(text):
     import ollama
     prompt = f'''
-You are a professional resume writer.
+You are an expert resume editor.
 
-Your task is to GENERATE a new professional resume summary from the given resume text.
+Your task is to convert the given resume text into a PROFESSIONAL RESUME SUMMARY.
 
-IMPORTANT:
-- Do NOT extract or reuse the existing summary sentences from the resume.
-- Rewrite everything in your own professional language.
-- Do NOT output a paragraph.
+THIS IS A STRICT, RULE-BOUND TASK.
 
-STRICT FORMAT RULES:
+ABSOLUTE NON-NEGOTIABLE RULES:
+1. You MUST scan the resume text for skill ratings.
+2. Skill ratings include:
+   - Stars (⭐ ★ ☆)
+   - Dots (● ○)
+   - Percentages (e.g., 80%)
+   - Words like Excellent / Good / Beginner
+3. IF ANY skill rating is present in the resume:
+   - You MUST include those skills WITH THE SAME RATINGS in the summary.
+   - You MUST preserve the exact symbols and rating format.
+4. If you fail to include existing ratings, the output is INVALID.
+
+FORMAT REQUIREMENTS:
+- Output ONLY a resume summary.
 - Use bullet points (•) only.
-- Maximum 5 bullet points.
-- Professional, recruiter-ready tone.
-- Avoid generic phrases like "self-directed", "motivated", "results-oriented".
+- 4 to 10 bullet Points total.
+- Each bullet must be one sentence.
+- No headings except the exact line:
+  Technical Expertise:
+- The Technical Expertise line MUST appear if ratings exist.
 
 CONTENT RULES:
-- Use ONLY information present in the resume text.
-- If years of experience are mentioned, format as "X+ years".
-- If a domain/industry is mentioned (Healthcare, Enterprise, FinTech, etc.), include it naturally.
-- If skills are mentioned, group them under a line starting exactly with:
-  Technical Expertise:
-- If skill ratings exist (⭐ ★ ☆ ● ○ %), preserve them exactly.
-- Do NOT invent skills, ratings, or domains.
+- Do NOT invent or assume any skills, ratings, companies, or experience.
+- Do NOT remove existing important information.
+- Do NOT list skills without ratings if ratings exist.
+- Do NOT rewrite the resume as sections.
 
-MANDATORY OUTPUT STRUCTURE:
+STYLE RULES:
+- Professional, human, resume-ready tone.
+- No generic buzzwords unless already present in resume.
+- No emojis, no explanations, no extra text.
 
-• Experienced software engineer with X+ years of hands-on experience in end-to-end product development.
-• Strong background in <domain if mentioned>.
-• Technical Expertise:
-  Skill1 ⭐⭐⭐⭐ | Skill2 ⭐⭐⭐⭐☆ | Skill3 ⭐⭐⭐⭐☆
-• Experienced in backend development, API design, system integration, and performance optimization.
-• Comfortable working in Agile teams and mentoring junior engineers.
-
-OUTPUT RULES:
-- Output ONLY: bullet-point summary.
-- Do NOT include headings, explanations, or emojis.
+CRITICAL OUTPUT CHECK:
+- If ratings exist in resume → summary MUST show them.
+- If ratings do not exist → DO NOT add any ratings.
 
 RESUME TEXT:
 {text[:1200]}

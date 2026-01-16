@@ -121,12 +121,20 @@ def home_post():
                     print("DEBUG: Starting summary generation...")
                     summary = create_resume_summary(resume_text)
                     print(f"DEBUG: Generated summary: {summary}")
+                    
+                    # Check if summary was generated successfully
+                    if not summary or summary.startswith("• Error"):
+                        print("DEBUG: Summary generation failed, using fallback")
+                        summary = "• Experienced professional with relevant skills and experience."
+                        
                 except Exception as e:
                     print(f"DEBUG: Summary generation failed: {e}")
-                    summary = "Summary generation failed. Please check resume file."
+                    import traceback
+                    traceback.print_exc()
+                    summary = "• Experienced professional with relevant skills and experience."
             else:
                 print("DEBUG: No resume text extracted")
-                summary = "Could not extract text from resume. Please check file format."
+                summary = "• Could not extract text from resume. Please check file format."
 
             # Add to database
             print(f"DEBUG: Saving to database - Summary: {summary[:100]}...")

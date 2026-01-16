@@ -242,12 +242,12 @@ MANDATORY OUTPUT STRUCTURE:
 • Experienced software engineer with X+ years of hands-on experience in end-to-end product development.
 • Strong background in <domain if mentioned>.
 • Technical Expertise:
-  Skill1 ⭐⭐⭐⭐⭐ | Skill2 ⭐⭐⭐⭐☆ | Skill3 ⭐⭐⭐⭐☆
+  Skill1 ⭐⭐⭐⭐ | Skill2 ⭐⭐⭐⭐☆ | Skill3 ⭐⭐⭐⭐☆
 • Experienced in backend development, API design, system integration, and performance optimization.
 • Comfortable working in Agile teams and mentoring junior engineers.
 
 OUTPUT RULES:
-- Output ONLY the bullet-point summary.
+- Output ONLY: bullet-point summary.
 - Do NOT include headings, explanations, or emojis.
 
 RESUME TEXT:

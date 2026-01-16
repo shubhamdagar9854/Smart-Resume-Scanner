@@ -114,19 +114,24 @@ def home_post():
 
             # Extract text and generate summary
             resume_text = get_text_from_resume(file_path)
-            summary = ""
-
+            print(f"DEBUG: Extracted resume text length: {len(resume_text)}")
+            
             if resume_text:
                 try:
+                    print("DEBUG: Starting summary generation...")
                     summary = create_resume_summary(resume_text)
+                    print(f"DEBUG: Generated summary: {summary}")
                 except Exception as e:
-                    print(f"Summary generation failed: {e}")
+                    print(f"DEBUG: Summary generation failed: {e}")
                     summary = "Summary generation failed. Please check resume file."
             else:
+                print("DEBUG: No resume text extracted")
                 summary = "Could not extract text from resume. Please check file format."
 
             # Add to database
+            print(f"DEBUG: Saving to database - Summary: {summary[:100]}...")
             add_resume(name, email, phone, "", file_path, summary)
+            print("DEBUG: Resume saved to database successfully")
 
             flash("Resume submitted successfully!")
             return redirect(url_for("home"))

@@ -139,6 +139,7 @@ def get_job_matches(job_id):
                 "file_path": r[4] if len(r) > 4 else None,  # Add file_path
                 "summary": r[5] or "",
                 "match": match_percent,
+                "match_percentage": match_percent,  # Add this key for template
                 "matched_skills": matched_keywords
             })
 

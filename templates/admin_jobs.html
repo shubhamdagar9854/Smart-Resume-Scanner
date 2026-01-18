@@ -103,7 +103,7 @@
         
         {% if item.matches %}
             {% for m in item.matches %}
-                <div class="match-item {% if m.match >= 70 %}high-match{% elif m.match >= 40 %}medium-match{% else %}low-match{% endif %}">
+                <div class="match-item {% if m.match_percentage >= 70 %}high-match{% elif m.match_percentage >= 40 %}medium-match{% else %}low-match{% endif %}">
                     <div class="candidate-info">
                         <h4>{{ m.name }}</h4>
                         <p>📧 {{ m.email }}</p>
@@ -114,8 +114,8 @@
                             <p>📝 Summary: {{ m.summary[:100] }}...</p>
                         {% endif %}
                         <div class="candidate-actions">
-                            <a href="{{ url_for('admin_candidate_detail', candidate_id=m.id) }}" class="view-details-btn">👤 View Details</a>
-                            <a href="{{ url_for('serve_upload', filename=m.file_path.split('\\')[-1] if m.file_path else '') }}" 
+                            <a href="{{ url_for('admin_candidate_detail', candidate_id=m.get('id', '')) }}" class="view-details-btn">👤 View Details</a>
+                            <a href="{{ url_for('serve_upload', filename=m.get('file_path', '').split('\\')[-1]) }}" 
                                class="view-resume-btn" target="_blank">📄 View Resume</a>
                         </div>
                     </div>

@@ -9,19 +9,23 @@ if os.environ.get('FLASK_ENV') == 'production':
 else:
     debug_mode = True
 
-from ollama_service import (
-    get_text_from_resume,
-    create_resume_summary,
-    match_resume_with_job
+from rag_summary import (
+    analyze_resume_text,
+    analyze_job_text,
+    match_resume_with_job,
+    extract_text_from_resume,
+    normalize_resume_json,
+    normalize_skills,
+    calculate_match_percentage
 )
 
 from database import (
     add_job_post,
     get_all_job_posts,
-    get_job_post_by_id,
-    add_resume,
     get_all_resumes,
+    add_resume,
     get_resume_by_id,
+    get_job_post_by_id,
     update_resume_summary,
     verify_admin,
     filter_resumes_by_keyword,
@@ -47,36 +51,6 @@ init_db()
 # =========================
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def generate_summary_in_background(app, resume_id, filepath, name):
-    with app.app_context():
-        print("BACKGROUND SUMMARY STARTED")
-        print(f"Processing resume ID: {resume_id}")
-        print(f"File path: {filepath}")
-
-        try:
-            text = get_text_from_resume(filepath)
-            print(f"Extracted text length: {len(text) if text else 0}")
-
-            if not text:
-                print("No text extracted from resume")
-                update_resume_summary(resume_id, "Failed to extract resume text")
-                return
-
-            summary = create_resume_summary(text)
-            print(f"Generated summary: {summary[:100]}...")
-
-            if not summary:
-                print("Summary generation failed")
-                update_resume_summary(resume_id, f"{name} - Resume uploaded successfully. Processing complete.")
-            else:
-                update_resume_summary(resume_id, summary)
-                print("SUMMARY UPDATED SUCCESSFULLY")
-
-        except Exception as e:
-            print(f"ERROR in background processing: {e}")
-            update_resume_summary(resume_id, f"Error: {str(e)}")
 
 
 # =========================
@@ -113,25 +87,42 @@ def home_post():
             file.save(file_path)
 
             # Extract text and generate summary
-            resume_text = get_text_from_resume(file_path)
+            resume_text = extract_text_from_resume(file_path)
             print(f"DEBUG: Extracted resume text length: {len(resume_text)}")
             
             if resume_text:
                 try:
-                    print("DEBUG: Starting summary generation...")
-                    summary = create_resume_summary(resume_text)
-                    print(f"DEBUG: Generated summary: {summary}")
+                    print("DEBUG: Starting resume analysis...")
+                    resume_analysis = analyze_resume_text(resume_text)
+                    print(f"DEBUG: Resume analysis: {resume_analysis}")
                     
-                    # Check if summary was generated successfully
-                    if not summary or summary.startswith("• Error"):
-                        print("DEBUG: Summary generation failed, using fallback")
-                        summary = create_fallback_summary(extracted_text)
+                    # Generate summary from analysis
+                    if resume_analysis and resume_analysis.get("skills"):
+                        skills_str = ", ".join(resume_analysis["skills"][:5])
+                        exp_years = resume_analysis.get("experience_years", 0)
+                        role_level = resume_analysis.get("role_level", "professional")
+                        
+                        summary = f"• {role_level.title()} technology professional with {exp_years}+ years of experience.\n"
+                        summary += f"• Proficient in {skills_str} with focus on scalable solutions.\n"
+                        
+                        if resume_analysis.get("projects_count", 0) > 0:
+                            summary += f"• Successfully delivered {resume_analysis['projects_count']} technical projects.\n"
+                        
+                        if resume_analysis.get("domain") and resume_analysis["domain"] != "general":
+                            summary += f"• Strong background in {resume_analysis['domain'].title()} industry.\n"
+                        
+                        if resume_analysis.get("key_achievements"):
+                            summary += f"• Experience with {', '.join(resume_analysis['key_achievements'][:2])}."
+                    else:
+                        summary = "• Technology professional with comprehensive software development expertise."
+                        
+                    print(f"DEBUG: Generated summary: {summary}")
                         
                 except Exception as e:
-                    print(f"DEBUG: Summary generation failed: {e}")
+                    print(f"DEBUG: Resume analysis failed: {e}")
                     import traceback
                     traceback.print_exc()
-                    summary = create_fallback_summary(extracted_text)
+                    summary = "• Technology professional with comprehensive software development expertise."
             else:
                 print("DEBUG: No resume text extracted")
                 summary = "• Could not extract text from resume. Please check file format."
@@ -202,16 +193,12 @@ def admin_dashboard():
     page = request.args.get('page', 1, type=int)
     per_page = 5
     
-    # Force page 1 if no page parameter or invalid page
     if page < 1:
         page = 1
     
-    # Get all resumes (no search functionality)
     resumes = get_all_resumes()
     
     print(f"DEBUG: Total resumes found: {len(resumes)}")
-    for r in resumes:
-        print(f"DEBUG: Resume - ID: {r[0]}, Name: {r[1]}")
     
     # Pagination logic
     total = len(resumes)
@@ -219,12 +206,6 @@ def admin_dashboard():
     end = start + per_page
     paginated_resumes = resumes[start:end]
     
-    print(f"DEBUG: Page {page}, Start: {start}, End: {end}")
-    print(f"DEBUG: Paginated resumes: {len(paginated_resumes)}")
-    for r in paginated_resumes:
-        print(f"DEBUG: Paginated Resume - ID: {r[0]}, Name: {r[1]}")
-    
-    # Calculate pagination info
     has_prev = page > 1
     has_next = end < total
     prev_page = page - 1 if has_prev else None
@@ -244,7 +225,7 @@ def admin_dashboard():
 
 
 # =========================
-# JOB POSTS
+# 🔥 FIXED JOB POSTS WITH AI MATCHING
 # =========================
 
 @app.route("/admin/jobs", methods=["GET", "POST"])
@@ -252,37 +233,157 @@ def admin_jobs():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
 
+    jobs_with_matches = []
+
     if request.method == "POST":
         title = request.form.get("title")
         description = request.form.get("description")
 
         if title and description:
+            # Add job to database
             add_job_post(title, description)
             flash("Job posted successfully", "success")
+            
+            print(f"\n🔍 ANALYZING JOB: {title}")
+            print(f"Description: {description}")
+            
+            # ========================================
+            # 🔥 AI MATCHING LOGIC - FULLY FIXED
+            # ========================================
+            resumes = get_all_resumes()
+            match_results = []
 
-    # Sirf LATEST job post lena hai
-    posts = get_all_job_posts()
-    latest_post = posts[0] if posts else None
-    
-    jobs_with_matches = []
-    if latest_post:
-        matches = get_job_matches(latest_post[0])
-        jobs_with_matches.append({
-            "job": latest_post,
-            "matches": matches
-        })
+            for r in resumes:
+                resume_path = r[5]
+                if not resume_path or not os.path.exists(resume_path):
+                    continue
+
+                resume_text = extract_text_from_resume(resume_path)
+                if not resume_text:
+                    continue
+
+                # AI extracts data ONLY
+                ai_raw = match_resume_with_job(resume_text, description)
+                
+                # ========================================
+                # 🔥 NORMALIZE JD JSON
+                # ========================================
+                raw_jd = ai_raw.get("job_data", {})
+                jd_json = {
+                    "skills": raw_jd.get("must_have", []) if isinstance(raw_jd.get("must_have"), list) else [],
+                    "projects": raw_jd.get("projects_required", []) if isinstance(raw_jd.get("projects_required"), list) else [],
+                    "experience_years": raw_jd.get("experience_years_required", 0) if isinstance(raw_jd.get("experience_years_required"), (int, float)) else 0
+                }
+                
+                # ========================================
+                # 🔥 NORMALIZE & CLEAN RESUME JSON
+                # ========================================
+                raw_resume = ai_raw.get("resume_data", {})
+                normalized_resume = normalize_resume_json(raw_resume)
+                
+                GARBAGE_VALUES = {
+                    "project", "projects", "experience", "experiences",
+                    "requirement", "requirements", "skill", "skills",
+                    "year", "years", "work", "education", "any", "the"
+                }
+                
+                # Clean JD skills - remove duplicates and garbage
+                jd_skills_clean = []
+                jd_seen = set()
+                for skill in jd_json["skills"]:
+                    skill_lower = str(skill).strip().lower()
+                    if skill_lower and skill_lower not in GARBAGE_VALUES and skill_lower not in jd_seen and len(skill_lower) > 1:
+                        jd_skills_clean.append(skill_lower)
+                        jd_seen.add(skill_lower)
+                
+                # Clean Resume skills - remove duplicates and garbage
+                resume_skills_clean = []
+                resume_seen = set()
+                for skill in normalized_resume.get("skills", []):
+                    skill_lower = str(skill).strip().lower()
+                    if skill_lower and skill_lower not in GARBAGE_VALUES and skill_lower not in resume_seen and len(skill_lower) > 1:
+                        resume_skills_clean.append(skill_lower)
+                        resume_seen.add(skill_lower)
+                
+                # Final clean JSON structures
+                jd_json["skills"] = jd_skills_clean
+                
+                resume_json = {
+                    "skills": resume_skills_clean,
+                    "projects": normalized_resume.get("projects", []) if isinstance(normalized_resume.get("projects"), list) else [],
+                    "experience_years": normalized_resume.get("experience_years", 0) if isinstance(normalized_resume.get("experience_years"), (int, float)) else 0
+                }
+
+                # ========================================
+                # 🔥 CALCULATE FINAL PERCENTAGE
+                # ========================================
+                final_percentage = calculate_match_percentage(jd_json, resume_json)
+                
+                # Find matched skills for UI display (no duplicates)
+                matched_skills_for_ui = []
+                matched_seen = set()
+                
+                for skill in resume_skills_clean:
+                    if skill in jd_skills_clean and skill not in matched_seen:
+                        matched_skills_for_ui.append(skill)
+                        matched_seen.add(skill)
+                
+                # Debug logging
+                print("\n" + "=" * 70)
+                print(f"📋 CANDIDATE: {r[1]}")
+                print("=" * 70)
+                print(f"📝 JD REQUIRES: {jd_json['skills']}")
+                print(f"📄 RESUME HAS: {resume_json['skills']}")
+                print(f"✅ MATCHED: {matched_skills_for_ui}")
+                print(f"🎯 PERCENTAGE: {final_percentage}%")
+                print("=" * 70 + "\n")
+
+                match_results.append({
+                    "name": r[1],
+                    "email": r[2],
+                    "match": final_percentage,  # <--- Ye 'match' key hona zaroori hai
+                    "match_percentage": final_percentage,  # For consistency
+                    "suggestions": ai_raw.get("explanation", ""),
+                    "matched_skills": matched_skills_for_ui,
+                    "missing_skills": [],
+                    "summary": r[6] if len(r) > 6 else ""
+                })
+
+            # Sort by percentage (highest first)
+            match_results.sort(key=lambda x: x["match_percentage"], reverse=True)
+            
+            # Get latest job post for display
+            posts = get_all_job_posts()
+            latest_post = posts[0] if posts else None
+            
+            if latest_post:
+                jobs_with_matches.append({
+                    "job": latest_post,
+                    "matches": match_results
+                })
+    else:
+        # GET request - show latest job with its matches
+        posts = get_all_job_posts()
+        latest_post = posts[0] if posts else None
+        
+        if latest_post:
+            matches = get_job_matches(latest_post[0])
+            # Ensure matches have both 'match' and 'match_percentage' keys
+            formatted_matches = []
+            for match in matches:
+                if isinstance(match, dict):
+                    match['match'] = match.get('match_percentage', 0)
+                formatted_matches.append(match)
+            
+            jobs_with_matches.append({
+                "job": latest_post,
+                "matches": formatted_matches
+            })
 
     return render_template(
         "admin_jobs.html",
         jobs_with_matches=jobs_with_matches
     )
-
-
-
-@app.route("/admin/job/<int:post_id>")
-def admin_job_matches(post_id):
-    return redirect(url_for("admin_jobs"))
-
 
 
 # =========================
@@ -303,12 +404,8 @@ def serve_upload(filename):
         return redirect(url_for("admin_login"))
     
     try:
-        # Handle both production and local paths
         uploads_dir = app.config['UPLOAD_FOLDER']
         file_path = os.path.join(uploads_dir, filename)
-        
-        print(f"Serving file: {file_path}")
-        print(f"File exists: {os.path.exists(file_path)}")
         
         if os.path.exists(file_path):
             return send_from_directory(uploads_dir, filename)
@@ -331,7 +428,6 @@ def admin_db_check():
     from database import get_all_resumes
     resumes = get_all_resumes()
     
-    # Create HTML table
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -392,26 +488,22 @@ def export_database():
     
     resumes = get_all_resumes()
     
-    # Create CSV
     output = StringIO()
     writer = csv.writer(output)
     
-    # Header
     writer.writerow(['ID', 'Name', 'Email', 'Phone', 'Photo', 'File Path', 'Summary'])
     
-    # Data
     for resume in resumes:
         writer.writerow([
-            resume[0],  # ID
-            resume[1],  # Name
-            resume[2],  # Email
-            resume[3] or '',  # Phone
-            resume[4] or '',  # Photo
-            resume[5] or '',  # File Path
-            resume[6] or ''   # Summary
+            resume[0],
+            resume[1],
+            resume[2],
+            resume[3] or '',
+            resume[4] or '',
+            resume[5] or '',
+            resume[6] or ''
         ])
     
-    # Create response
     output.seek(0)
     response = send_file(
         output,
@@ -434,5 +526,3 @@ if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(host='0.0.0.0', port=port, debug=debug)
-    
-

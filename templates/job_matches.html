@@ -3,25 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matching Candidates</title>
+    <title>AI Job Match</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .form-container {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .form-container h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            resize: vertical;
+            min-height: 150px;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .submit-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .candidate-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .match-score {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 15px 0;
+        }
+        
+        .match-score h2 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .matched-section {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .missing-section {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .experience-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        h4 {
+            margin: 0 0 5px 0;
+            color: #333;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
 
-<h2>Matching Candidates</h2>
-
-{% if resumes %}
-    {% for r in resumes %}
-        <div style="border:1px solid #ccc;padding:10px;margin-bottom:10px">
-            <h3>{{ r.name }}</h3>
-            <p>Email: {{ r.email }}</p>
-            <strong>Match: {{ r.match }}%</strong>
+<!-- 🔥 JOB DESCRIPTION FORM -->
+<div class="form-container">
+    <h2>🤖 AI-Powered Job Matching</h2>
+    <form method="POST" action="/admin/job-match">
+        <div class="form-group">
+            <label for="job_description">Job Description & Requirements:</label>
+            <textarea 
+                name="job_description" 
+                id="job_description" 
+                placeholder="Enter job requirements (e.g., Python, Flask, 2 years experience, Resume Scanner project)"
+                required
+            ></textarea>
         </div>
+        <button type="submit" class="submit-btn">🚀 Find Matching Candidates</button>
+    </form>
+</div>
+
+<!-- 🎯 MATCHING RESULTS -->
+{% if match_results %}
+    <h2>🎯 Matching Candidates ({{ match_results|length }} found)</h2>
+    
+    {% for match in match_results %}
+    <div class="candidate-card">
+        <h3>{{ match.name }}</h3>
+        <p>📧 {{ match.email }}</p>
+
+        <div class="match-score">
+            <h2>{{ match.match_percentage }}%</h2>
+        </div>
+
+        <!-- ✅ MATCHED SKILLS -->
+        {% if match.matched_skills %}
+        <div class="matched-section">
+            <h4>✅ Matched Skills:</h4>
+            <p>{{ match.matched_skills|join(', ') }}</p>
+        </div>
+        {% endif %}
+
+        <!-- ❌ MISSING SKILLS -->
+        {% if match.missing_skills %}
+        <div class="missing-section">
+            <h4>❌ Missing Skills:</h4>
+            <p>{{ match.missing_skills|join(', ') }}</p>
+        </div>
+        {% endif %}
+    </div>
     {% endfor %}
-{% else %}
-    <p>No matching candidates found.</p>
 {% endif %}
 
-<a href="/admin/jobs">⬅ Back</a>
+<a href="/admin/dashboard" class="back-link">⬅ Back to Dashboard</a>
 
 </body>
 </html>

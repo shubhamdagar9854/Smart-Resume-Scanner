@@ -114,12 +114,18 @@
                             <p>📝 Summary: {{ m.summary[:100] }}...</p>
                         {% endif %}
                         <div class="candidate-actions">
-                            <a href="{{ url_for('admin_candidate_detail', candidate_id=m.get('id', '')) }}" class="view-details-btn">👤 View Details</a>
-                            <a href="{{ url_for('serve_upload', filename=m.get('file_path', '').split('\\')[-1]) }}" 
-                               class="view-resume-btn" target="_blank">📄 View Resume</a>
+                            {% if m.id %}
+                                <a href="{{ url_for('admin_candidate_detail', candidate_id=m.id) }}" class="view-details-btn">👤 View Details</a>
+                            {% else %}
+                                <span class="view-details-btn" style="background: grey;">No ID</span>
+                            {% endif %}
+                            {% if m.file_path %}
+                                <a href="{{ url_for('serve_upload', filename=m.file_path.split('\\')[-1]) }}" 
+                                   class="view-resume-btn" target="_blank">📄 View Resume</a>
+                            {% endif %}
                         </div>
                     </div>
-                    <div class="match-percentage">{{ m.match }}%</div>
+                    <div class="match-percentage">{{ m.match_percentage }}%</div>
                 </div>
             {% endfor %}
             

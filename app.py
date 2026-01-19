@@ -89,6 +89,7 @@ def home_post():
             # Extract text and generate summary
             resume_text = extract_text_from_resume(file_path)
             print(f"DEBUG: Extracted resume text length: {len(resume_text)}")
+            print(f"DEBUG FULL TEXT: {resume_text}") # <-- Isse terminal mein dikhega ki actually read kya
             
             if resume_text:
                 try:

@@ -2,8 +2,8 @@ import json
 import requests
 import re
 import pdfplumber
-from PyPDF2 import PdfReader
 import docx
+import os
 
 class MistralClient:
     def __init__(self, model="llama3.2:1b"):
@@ -21,46 +21,10 @@ class MistralClient:
             return ""
         return ""
 
-def analyze_resume_text(text):
-    # 1. PEHLE: AI se nikalne ki koshish (Mistral)
-    # 2. SAATH MEIN: Manual check (Regex) taaki agar AI miss kare toh hum pakad lein
-    
-    common_skills = ['python', 'java', 'flask', 'sql', 'javascript', 'node', 'react', 'html', 'css', 'mongodb']
-    found_skills = set()
-
-    # Manual extraction (Pure Logic)
-    for skill in common_skills:
-        if re.search(r'\b' + re.escape(skill) + r'\b', text.lower()):
-            found_skills.add(skill.title())
-
-    # AI extraction (Mistral)
-    client = MistralClient()
-    prompt = f"Extract only technical skills as a JSON list from this text: {text[:4000]}"
-    try:
-        raw_res = client.generate(prompt)
-        # JSON extract karne ka logic yahan aayega
-        match = re.search(r'\{.*\}', raw_res, re.DOTALL)
-        if match:
-            ai_data = json.loads(match.group(0))
-            ai_skills = ai_data.get("skills", [])
-            # AI skills ko manual skills ke saath merge karo
-            for skill in ai_skills:
-                found_skills.add(skill.title())
-    except:
-        pass
-
-    return {"skills": list(found_skills)} # Dono ka mix return karo
-
-# --- APP.PY COMPATIBILITY FUNCTIONS ---
-def analyze_resume_with_rules(text): return analyze_resume_text(text)
-def normalize_resume_json(data): return data
-
 def extract_text_from_resume(file_path):
-    """Extract text from PDF or DOCX using pdfplumber for better accuracy"""
     text = ""
     try:
         if file_path.endswith('.pdf'):
-            # pdfplumber complex layouts ke liye best hai
             with pdfplumber.open(file_path) as pdf:
                 for page in pdf.pages:
                     page_text = page.extract_text()
@@ -68,103 +32,256 @@ def extract_text_from_resume(file_path):
                         text += page_text + "\n"
         elif file_path.endswith('.docx'):
             doc = docx.Document(file_path)
-            for para in doc.paragraphs:
-                text += para.text + "\n"
+            text = "\n".join([para.text for para in doc.paragraphs])
     except Exception as e:
         print(f"Extraction Error: {e}")
-        return "resume text available"
     
-    return text.strip()
+    return text.strip() if text.strip() else "No text found"
 
-# Additional compatibility functions for app.py
+def analyze_resume_text(text):
+    # Standard technical skills list for manual backup
+    skills_db = ['python', 'java', 'flask', 'sql', 'javascript', 'node', 'react', 'html', 'css', 'mongodb', 'express', 'git', 'docker']
+    found_skills = set()
+
+    # 1. Logic Check (Regex)
+    for skill in skills_db:
+        if re.search(r'\b' + re.escape(skill) + r'\b', text.lower()):
+            found_skills.add(skill.title())
+
+    # 2. AI Check (Mistral)
+    client = MistralClient()
+    prompt = f"Identify technical skills in this text and return only a JSON with 'skills' list: {text[:2000]}"
+    try:
+        raw_res = client.generate(prompt)
+        match = re.search(r'\{.*\}', raw_res, re.DOTALL)
+        if match:
+            ai_data = json.loads(match.group(0))
+            for s in ai_data.get("skills", []):
+                found_skills.add(s.title())
+    except:
+        pass
+
+    return {"skills": list(found_skills)}
+
 def analyze_job_text(text):
-    """Simple job analysis for compatibility"""
-    skills_db = ["python", "flask", "sql", "java", "javascript", "react", "node", "aws", "docker"]
-    found = [s.title() for s in skills_db if s in text.lower()]
-    return {"must_have": found, "experience_years_required": 2}
+    # Job description se skills nikalne ke liye dynamic cleaning
+    # Split by comma, space or newline
+    potential_skills = re.split(r'[,\n\s/]', text.lower())
+    common_tech = {'python', 'java', 'flask', 'sql', 'javascript', 'react', 'node', 'html', 'css', 'mongodb', 'docker', 'aws'}
+    
+    found = set()
+    for word in potential_skills:
+        word = word.strip('.,()')
+        if word in common_tech or len(word) > 2: # Length check to avoid garbage
+            if len(word) > 1: found.add(word.title())
+
+    return {"skills": list(found), "must_have": list(found)}
 
 def match_resume_with_job(resume_text, job_text):
-    """Simple matching for compatibility"""
     resume_data = analyze_resume_text(resume_text)
     job_data = analyze_job_text(job_text)
-    return {"resume_data": resume_data, "job_data": job_data}
-
-def calculate_match_percentage(jd_json, resume_json):
-    """
-    PURE DETERMINISTIC CALCULATION
-    Ensures that if Python is in JD and Resume, score is NOT 0.
-    """
-    # 1. Extract and Clean Skills
-    jd_skills = set([str(s).lower().strip() for s in jd_json.get("skills", [])])
-    res_skills = set([str(s).lower().strip() for s in resume_json.get("skills", [])])
-    
-    if not jd_skills:
-        return 0.0
-
-    # 2. Match Skills
-    matched_skills = jd_skills.intersection(res_skills)
-    
-    # 3. Calculate Base Score (Skills only for now to keep it simple)
-    # Formula: (Matched / Total Required) * 100
-    score = (len(matched_skills) / len(jd_skills)) * 100
-    
-    # 4. Optional: Add Experience Weight if needed
-    # (Abhi ke liye sirf skills rakhte hain taaki 0% na aaye)
-    
-    print(f"--- MATCH ENGINE DEBUG ---")
-    print(f"JD Skills: {jd_skills}")
-    print(f"Resume Skills: {res_skills}")
-    print(f"Matched: {matched_skills}")
-    print(f"Final Score: {round(score, 2)}%")
-    print(f"--------------------------")
-    
-    return round(float(score), 2)
-
-def calculate_match_score(resume_data, job_data):
-    # 1. Skills ko clean list mein convert karo
-    # Resume skills extract karo
-    r_skills = [s.lower().strip() for s in resume_data.get("skills", [])]
-    
-    # JD skills extract karo (Check both 'must_have' and 'skills' keys)
-    j_skills = job_data.get("must_have", [])
-    if not j_skills:
-        j_skills = job_data.get("skills", [])
-        
-    j_skills = [s.lower().strip() for s in j_skills]
-
-    print(f"DEBUG: Comparing Resume {r_skills} with JD {j_skills}") # Terminal mein dikhega
-
-    # 2. Match nikaalo
-    matched = [s for s in j_skills if s in r_skills]
-    
-    # 3. Score Calculate Karo
-    total_required = len(j_skills)
-    if total_required == 0:
-        score = 0
-    else:
-        # Score ko 100 se multiply karna mat bhulna
-        score = round((len(matched) / total_required) * 100, 2)
-
-    print(f"DEBUG: Matched count: {len(matched)}, Total: {total_required}, Score: {score}")
-
-    # 4. Result Return Karo (Make sure keys match what app.py expects)
     return {
-        "total_score": float(score),  # Ensure it's a number
-        "match_percentage": float(score), # Backup key
-        "matched_skills": matched,
-        "match_type": "EXCELLENT" if score > 75 else "GOOD" if score > 40 else "POOR"
+        "resume_data": resume_data, 
+        "job_data": job_data,
+        "explanation": "Matching based on detected keywords and AI parsing."
     }
 
-def get_resume_summary(text):
-    """Compatibility function"""
-    return analyze_resume_text(text)
+def calculate_match_percentage(jd_json, resume_json):
+    # Ensuring keys are handled correctly from app.py
+    j_skills = set([str(s).lower().strip() for s in jd_json.get("skills", jd_json.get("must_have", []))])
+    r_skills = set([str(s).lower().strip() for s in resume_json.get("skills", [])])
+    
+    if not j_skills: return 0.0
+    matched = j_skills.intersection(r_skills)
+    score = (len(matched) / len(j_skills)) * 100
+    return round(float(score), 2)
 
-def generate_match_explanation(r, j, s):
-    """Simple explanation for compatibility"""
-    return "Skills-based analysis completed."
+# --- APP.PY COMPATIBILITY STUBS ---
+def analyze_resume_with_rules(text): return analyze_resume_text(text)
+def normalize_resume_json(data): return data
 
-def normalize_skills(skills):
-    """Normalize skills for compatibility"""
-    if not skills:
-        return []
-    return list(set([s.lower().strip() for s in skills if s]))
+# =====================================================
+# ENHANCED RESUME SUMMARY GENERATOR
+# =====================================================
+def generate_professional_summary(resume_text: str) -> str:
+    """
+    Generate comprehensive professional summary from resume
+    Includes: Roles, Tech Stack, Domain, Certificates, Skills, Hobbies
+    """
+    
+    resume_lower = resume_text.lower()
+    summary_parts = []
+    
+    # ========================================
+    # 1️⃣ EXTRACT PREVIOUS ROLES
+    # ========================================
+    roles = []
+    role_keywords = [
+        'software engineer', 'developer', 'senior developer', 'lead developer',
+        'full stack', 'frontend', 'backend', 'data scientist', 'analyst',
+        'project manager', 'team lead', 'architect', 'consultant',
+        'intern', 'junior developer', 'ml engineer', 'devops engineer'
+    ]
+    
+    for role in role_keywords:
+        if role in resume_lower:
+            roles.append(role.title())
+    
+    # Remove duplicates while preserving order
+    roles = list(dict.fromkeys(roles))
+    
+    if roles:
+        summary_parts.append(f"• Professional with experience as {', '.join(roles[:3])}")
+    
+    # ========================================
+    # 2️⃣ EXTRACT TECH STACK & EXPERIENCE
+    # ========================================
+    tech_stack = {
+        'Languages': ['python', 'java', 'javascript', 'c++', 'c#', 'go', 'ruby', 'php', 'typescript'],
+        'Frameworks': ['react', 'angular', 'vue', 'django', 'flask', 'spring', 'node', 'express'],
+        'Databases': ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'oracle'],
+        'Cloud/DevOps': ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'git'],
+        'AI/ML': ['machine learning', 'deep learning', 'tensorflow', 'pytorch', 'nlp']
+    }
+    
+    found_tech = {}
+    for category, techs in tech_stack.items():
+        found = [tech for tech in techs if tech in resume_lower]
+        if found:
+            found_tech[category] = found
+    
+    if found_tech:
+        tech_summary = []
+        for category, techs in found_tech.items():
+            if techs:
+                tech_summary.append(f"{', '.join(techs[:3])}")
+        
+        if tech_summary:
+            summary_parts.append(f"• Proficient in {' | '.join(tech_summary[:2])} with hands-on experience")
+    
+    # ========================================
+    # 3️⃣ EXTRACT DOMAIN EXPERTISE
+    # ========================================
+    domains = {
+        'fintech': ['fintech', 'finance', 'banking', 'payment'],
+        'healthcare': ['healthcare', 'medical', 'health'],
+        'e-commerce': ['e-commerce', 'ecommerce', 'retail', 'shopping'],
+        'education': ['education', 'edtech', 'learning'],
+        'enterprise': ['enterprise', 'b2b', 'saas'],
+        'gaming': ['gaming', 'game development'],
+        'data analytics': ['analytics', 'data science', 'bi']
+    }
+    
+    found_domains = []
+    for domain, keywords in domains.items():
+        if any(kw in resume_lower for kw in keywords):
+            found_domains.append(domain.title())
+    
+    if found_domains:
+        summary_parts.append(f"• Domain expertise in {', '.join(found_domains[:2])}")
+    
+    # ========================================
+    # 4️⃣ EXTRACT CERTIFICATIONS
+    # ========================================
+    cert_keywords = [
+        'certified', 'certification', 'aws certified', 'azure certified',
+        'google cloud', 'pmp', 'scrum master', 'csm', 'comptia',
+        'cissp', 'ceh', 'oracle certified', 'microsoft certified'
+    ]
+    
+    certifications = []
+    for cert in cert_keywords:
+        if cert in resume_lower:
+            # Extract the line containing certification
+            for line in resume_text.split('\n'):
+                if cert in line.lower():
+                    certifications.append(line.strip()[:50])
+                    break
+    
+    if certifications:
+        summary_parts.append(f"• Certified professional: {certifications[0]}")
+    
+    # ========================================
+    # 5️⃣ EXTRACT CROSS-FUNCTIONAL EXPERIENCE
+    # ========================================
+    cross_functional = []
+    cf_keywords = {
+        'team collaboration': ['collaboration', 'cross-functional', 'team work'],
+        'agile methodologies': ['agile', 'scrum', 'kanban', 'sprint'],
+        'client interaction': ['client', 'stakeholder', 'customer facing'],
+        'leadership': ['led team', 'managed team', 'mentored', 'leadership'],
+        'project management': ['project management', 'delivery', 'roadmap']
+    }
+    
+    for skill, keywords in cf_keywords.items():
+        if any(kw in resume_lower for kw in keywords):
+            cross_functional.append(skill)
+    
+    if cross_functional:
+        summary_parts.append(f"• Experience in {', '.join(cross_functional[:2])}")
+    
+    # ========================================
+    # 6️⃣ EXTRACT INTERPERSONAL SKILLS
+    # ========================================
+    soft_skills = []
+    skill_keywords = {
+        'communication': ['communication', 'presentation', 'documentation'],
+        'problem-solving': ['problem solving', 'analytical', 'critical thinking'],
+        'adaptability': ['adaptable', 'flexible', 'quick learner'],
+        'time management': ['time management', 'prioritization', 'multitasking']
+    }
+    
+    for skill, keywords in skill_keywords.items():
+        if any(kw in resume_lower for kw in keywords):
+            soft_skills.append(skill)
+    
+    if soft_skills:
+        summary_parts.append(f"• Strong {', '.join(soft_skills[:2])} skills")
+    
+    # ========================================
+    # 7️⃣ EXTRACT HOBBIES/INTERESTS
+    # ========================================
+    hobbies = []
+    hobby_keywords = [
+        'reading', 'writing', 'blogging', 'open source', 'contributing',
+        'hackathon', 'coding competitions', 'sports', 'travel',
+        'photography', 'music', 'volunteering'
+    ]
+    
+    for hobby in hobby_keywords:
+        if hobby in resume_lower:
+            hobbies.append(hobby)
+    
+    if hobbies:
+        summary_parts.append(f"• Interests: {', '.join(hobbies[:3])}")
+    
+    # ========================================
+    # 8️⃣ EXTRACT YEARS OF EXPERIENCE
+    # ========================================
+    experience_years = 0
+    exp_patterns = [
+        r'(\d+)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience',
+        r'experience\s*:?\s*(\d+)\+?\s*(?:years?|yrs?)'
+    ]
+    
+    for pattern in exp_patterns:
+        match = re.search(pattern, resume_lower)
+        if match:
+            experience_years = int(match.group(1))
+            break
+    
+    # ========================================
+    # 🎯 BUILD FINAL SUMMARY
+    # ========================================
+    if not summary_parts:
+        return "• Technology professional with comprehensive software development expertise"
+    
+    # Add experience header if found
+    if experience_years > 0:
+        header = f"• {experience_years}+ years of professional experience\n"
+        return header + "\n".join(summary_parts)
+    
+    return "\n".join(summary_parts)
+
+def get_resume_summary(text): 
+    return generate_professional_summary(text)

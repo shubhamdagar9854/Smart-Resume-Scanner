@@ -15,8 +15,8 @@ from rag_summary import (
     match_resume_with_job,
     extract_text_from_resume,
     normalize_resume_json,
-    normalize_skills,
-    calculate_match_percentage
+    calculate_match_percentage,
+    generate_professional_summary
 )
 
 from database import (
@@ -93,34 +93,11 @@ def home_post():
             
             if resume_text:
                 try:
-                    print("DEBUG: Starting resume analysis...")
-                    resume_analysis = analyze_resume_text(resume_text)
-                    print(f"DEBUG: Resume analysis: {resume_analysis}")
-                    
-                    # Generate summary from analysis
-                    if resume_analysis and resume_analysis.get("skills"):
-                        skills_str = ", ".join(resume_analysis["skills"][:5])
-                        exp_years = resume_analysis.get("experience_years", 0)
-                        role_level = resume_analysis.get("role_level", "professional")
-                        
-                        summary = f"• {role_level.title()} technology professional with {exp_years}+ years of experience.\n"
-                        summary += f"• Proficient in {skills_str} with focus on scalable solutions.\n"
-                        
-                        if resume_analysis.get("projects_count", 0) > 0:
-                            summary += f"• Successfully delivered {resume_analysis['projects_count']} technical projects.\n"
-                        
-                        if resume_analysis.get("domain") and resume_analysis["domain"] != "general":
-                            summary += f"• Strong background in {resume_analysis['domain'].title()} industry.\n"
-                        
-                        if resume_analysis.get("key_achievements"):
-                            summary += f"• Experience with {', '.join(resume_analysis['key_achievements'][:2])}."
-                    else:
-                        summary = "• Technology professional with comprehensive software development expertise."
-                        
-                    print(f"DEBUG: Generated summary: {summary}")
-                        
+                    print("DEBUG: Generating enhanced summary...")
+                    summary = generate_professional_summary(resume_text)
+                    print(f"DEBUG: Generated summary:\n{summary}")
                 except Exception as e:
-                    print(f"DEBUG: Resume analysis failed: {e}")
+                    print(f"DEBUG: Summary generation failed: {e}")
                     import traceback
                     traceback.print_exc()
                     summary = "• Technology professional with comprehensive software development expertise."

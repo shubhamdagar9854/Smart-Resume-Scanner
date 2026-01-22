@@ -8,22 +8,17 @@ import io
 from datetime import datetime
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-# Production environment setup
-if os.environ.get('FLASK_ENV') == 'production':
-    debug_mode = False
-else:
-    debug_mode = True
+app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'
 
-from rag_summary import (
-    analyze_resume_text,
-    analyze_job_text,
-    match_resume_with_job,
-    extract_text_from_resume,
-    normalize_resume_json,
-    calculate_match_percentage,
-    generate_professional_summary
-)
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# DB init
 from database import (
     add_job_post,
     get_all_job_posts,
@@ -38,18 +33,17 @@ from database import (
     init_db
 )
 
-app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
-
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# DB init
 init_db()
+
+from rag_summary import (
+    analyze_resume_text,
+    analyze_job_text,
+    match_resume_with_job,
+    extract_text_from_resume,
+    normalize_resume_json,
+    calculate_match_percentage,
+    generate_professional_summary
+)
 
 # =========================
 # HELPERS
@@ -507,6 +501,5 @@ def api_get_matches(job_id):
 # =========================
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_ENV') != 'production'
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    port = int(os.environ.get("PORT", 10000)) # Render default 10000 use karta hai
+    app.run(host='0.0.0.0', port=port)

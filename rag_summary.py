@@ -12,12 +12,14 @@ class MistralClient:
     
     def generate(self, prompt):
         try:
+            # Timeout ko kam rakho taaki app hang na ho
             response = requests.post(self.base_url, 
                 json={"model": self.model, "prompt": prompt, "stream": False}, 
-                timeout=15)
+                timeout=2) 
             if response.status_code == 200:
                 return response.json().get("response", "").strip()
-        except:
+        except Exception as e:
+            print(f"AI Error: {e}") # Sirf print karo, crash mat hone do
             return ""
         return ""
 

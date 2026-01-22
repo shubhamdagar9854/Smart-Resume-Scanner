@@ -3,20 +3,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const resumeInput = document.getElementById('resume_file');
     const fileNameDisplay = document.getElementById('fileName');
 
-    // Sirf file ka naam dikhane ke liye
     resumeInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             fileNameDisplay.textContent = 'Selected: ' + e.target.files[0].name;
         }
     });
 
-    // Submit par koi e.preventDefault() NAHI hona chahiye
-    resumeForm.addEventListener('submit', () => {
-        // Sirf button ka text badlein feedback ke liye
+    resumeForm.addEventListener('submit', (e) => {
         const btn = resumeForm.querySelector('button');
-        btn.textContent = "Uploading...";
-        btn.disabled = true; 
+        btn.textContent = "Uploading... Please wait";
         
-        // Form apne aap submit hoga aur page refresh hoga
+        // Button ko foran disable MAT karo, warna request block ho sakti hai
+        // 100ms ka delay browser ko request bhejne mein madad karega
+        setTimeout(() => {
+            btn.style.opacity = "0.5";
+            btn.style.cursor = "not-allowed";
+        }, 100);
     });
 });

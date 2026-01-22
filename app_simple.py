@@ -56,60 +56,73 @@ def extract_text_from_file(file, file_ext):
         return ""
 
 def extract_skills(text):
-    """Extract skills from resume text"""
+    """Extract skills from resume text - Simple regex based"""
     import re
-    skills_keywords = ['python', 'java', 'javascript', 'flask', 'django', 'react', 'node', 'sql']
+    skills_keywords = ['python', 'java', 'javascript', 'flask', 'django', 'react', 'node', 'sql', 'html', 'css', 'mongodb', 'mysql', 'postgresql']
     found_skills = []
     text_lower = text.lower()
     
     for skill in skills_keywords:
         if skill in text_lower:
-            found_skills.append(skill)
+            found_skills.append(skill.title())
     
     return ', '.join(found_skills)
+
+def generate_simple_summary(text, skills):
+    """Generate simple summary without AI"""
+    if not text:
+        return "• Professional with technical expertise"
+    
+    summary_parts = []
+    
+    # Add skills if found
+    if skills:
+        summary_parts.append(f"• Skilled in {skills}")
+    
+    # Add experience if found
+    exp_match = re.search(r'(\d+)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience', text.lower())
+    if exp_match:
+        years = exp_match.group(1)
+        summary_parts.append(f"• {years}+ years of experience")
+    
+    # Add education if found
+    if any(edu in text.lower() for edu in ['bachelor', 'master', 'phd', 'degree', 'university']):
+        summary_parts.append("• Educational background in technology")
+    
+    if not summary_parts:
+        summary_parts.append("• Technology professional with comprehensive skills")
+    
+    return '\n'.join(summary_parts)
 
 # Upload route - Save file in database
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
         try:
-            print("DEBUG: POST request received")
-            print(f"DEBUG: Form data: {request.form}")
-            print(f"DEBUG: Files: {request.files}")
-            
             name = request.form.get('name', '').strip()
             email = request.form.get('email', '').strip()
             phone = request.form.get('phone', '').strip()
             
-            print(f"DEBUG: Extracted - Name: {name}, Email: {email}, Phone: {phone}")
-            
             if not all([name, email, phone]):
-                print("DEBUG: Missing required fields")
                 flash('All fields are required!', 'error')
                 return redirect(url_for('index'))
             
             # Get file
             if 'resume' not in request.files:
-                print("DEBUG: No resume file in request")
                 flash('No file uploaded!', 'error')
                 return redirect(url_for('index'))
             
             file = request.files['resume']
-            print(f"DEBUG: File object: {file}")
-            print(f"DEBUG: File filename: {file.filename}")
             
             if file.filename == '':
-                print("DEBUG: Empty filename")
                 flash('No file selected!', 'error')
                 return redirect(url_for('index'))
             
             # Validate file type
             allowed_extensions = ['.pdf', '.docx']
             file_ext = os.path.splitext(file.filename)[1].lower()
-            print(f"DEBUG: File extension: {file_ext}")
             
             if file_ext not in allowed_extensions:
-                print("DEBUG: Invalid file type")
                 flash('Only PDF and DOCX files allowed!', 'error')
                 return redirect(url_for('index'))
             
@@ -118,18 +131,15 @@ def index():
             file_name = secure_filename(file.filename)
             file_type = file.content_type or 'application/octet-stream'
             
-            print(f"DEBUG: File size: {len(file_data)} bytes")
-            print(f"DEBUG: File name: {file_name}")
-            print(f"DEBUG: File type: {file_type}")
-            
             # Extract text from file
             file.seek(0)  # Reset file pointer
             resume_text = extract_text_from_file(file, file_ext)
-            print(f"DEBUG: Extracted text length: {len(resume_text)}")
             
             # Extract skills
             skills = extract_skills(resume_text)
-            print(f"DEBUG: Extracted skills: {skills}")
+            
+            # Generate simple summary (without AI)
+            summary = generate_simple_summary(resume_text, skills)
             
             # Save to database
             conn = sqlite3.connect('resumes.db')
@@ -141,14 +151,11 @@ def index():
             conn.commit()
             conn.close()
             
-            print("DEBUG: Successfully saved to database")
             flash('Resume uploaded successfully!', 'success')
             return redirect(url_for('index'))
             
         except Exception as e:
             print(f"ERROR: {str(e)}")
-            import traceback
-            traceback.print_exc()
             flash(f'Error uploading resume: {str(e)}', 'error')
             return redirect(url_for('index'))
     
@@ -234,6 +241,7 @@ def admin_logout():
     flash('Logged out', 'success')
     return redirect(url_for('admin_login'))
 
+# Gunicorn ready
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port)

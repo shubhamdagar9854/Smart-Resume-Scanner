@@ -37,6 +37,9 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Initialize database on startup
+init_db()
+
 # Text extraction functions
 def extract_text_from_file(file, file_ext):
     """Extract text from PDF or DOCX"""
@@ -77,46 +80,63 @@ def extract_skills(text):
 def index():
     if request.method == 'POST':
         try:
+            print("DEBUG: POST request received")
+            print(f"DEBUG: Form data: {request.form}")
+            print(f"DEBUG: Files: {request.files}")
+            
             name = request.form.get('name', '').strip()
             email = request.form.get('email', '').strip()
             phone = request.form.get('phone', '').strip()
             
+            print(f"DEBUG: Extracted - Name: {name}, Email: {email}, Phone: {phone}")
+            
             if not all([name, email, phone]):
+                print("DEBUG: Missing required fields")
                 flash('All fields are required!', 'error')
                 return redirect(url_for('index'))
             
             # Get file
             if 'resume' not in request.files:
+                print("DEBUG: No resume file in request")
                 flash('No file uploaded!', 'error')
                 return redirect(url_for('index'))
             
             file = request.files['resume']
+            print(f"DEBUG: File object: {file}")
+            print(f"DEBUG: File filename: {file.filename}")
             
             if file.filename == '':
+                print("DEBUG: Empty filename")
                 flash('No file selected!', 'error')
                 return redirect(url_for('index'))
             
             # Validate file type
             allowed_extensions = ['.pdf', '.docx']
             file_ext = os.path.splitext(file.filename)[1].lower()
+            print(f"DEBUG: File extension: {file_ext}")
             
             if file_ext not in allowed_extensions:
+                print("DEBUG: Invalid file type")
                 flash('Only PDF and DOCX files allowed!', 'error')
                 return redirect(url_for('index'))
             
             # Read file content
             file_data = file.read()
             file_name = secure_filename(file.filename)
-            file_type = file.content_type
+            file_type = file.content_type or 'application/octet-stream'
+            
+            print(f"DEBUG: File size: {len(file_data)} bytes")
+            print(f"DEBUG: File name: {file_name}")
+            print(f"DEBUG: File type: {file_type}")
             
             # Extract text from file
             file.seek(0)  # Reset file pointer
             resume_text = extract_text_from_file(file, file_ext)
+            print(f"DEBUG: Extracted text length: {len(resume_text)}")
             
             # Extract skills
             skills = extract_skills(resume_text)
-            
-            print(f"DEBUG: Saving resume - Name: {name}, File size: {len(file_data)} bytes")
+            print(f"DEBUG: Extracted skills: {skills}")
             
             # Save to database
             conn = sqlite3.connect('resumes.db')
@@ -128,15 +148,18 @@ def index():
             conn.commit()
             conn.close()
             
+            print("DEBUG: Successfully saved to database")
             flash('Resume uploaded successfully!', 'success')
             return redirect(url_for('index'))
             
         except Exception as e:
             print(f"ERROR: {str(e)}")
+            import traceback
+            traceback.print_exc()
             flash(f'Error uploading resume: {str(e)}', 'error')
             return redirect(url_for('index'))
     
-    return render_template('index.html')
+    return render_template('index_database.html')
 
 # Serve file from database
 @app.route('/uploads/<int:resume_id>')

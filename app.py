@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 import os
+import logging
 import threading
 from werkzeug.utils import secure_filename
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Production environment setup
 if os.environ.get('FLASK_ENV') == 'production':

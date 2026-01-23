@@ -9,15 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    resumeForm.addEventListener('submit', (e) => {
+    resumeForm.addEventListener('submit', () => {
         const btn = resumeForm.querySelector('button');
         btn.textContent = "Uploading... Please wait";
         
-        // Button ko foran disable MAT karo, warna request block ho sakti hai
-        // 100ms ka delay browser ko request bhejne mein madad karega
-        setTimeout(() => {
-            btn.style.opacity = "0.5";
-            btn.style.cursor = "not-allowed";
-        }, 100);
+        // YE LINE HATA DO: btn.disabled = true; 
+        // Iski jagah sirf opacity kam kar do taaki click na ho
+        btn.style.pointerEvents = "none"; 
+        btn.style.opacity = "0.7";
     });
 });

@@ -5,29 +5,6 @@ import pdfplumber
 import docx
 import os
 
-class MistralClient:
-    def __init__(self, model="llama3.2:1b"):
-        # Isse ab koi farak nahi padega
-        self.model = model
-    
-    def generate(self, prompt):
-        # AI ko abhi bypass kar rahe hain taaki project crash na ho
-        # Ye seedha text return karega bina kisi wait ke
-        return "Professional summary generated (Cloud Mode: AI Bypassed for stability)."
-    
-    def generate(self, prompt):
-        try:
-            # Timeout ko kam rakho taaki app hang na ho
-            response = requests.post(self.base_url, 
-                json={"model": self.model, "prompt": prompt, "stream": False}, 
-                timeout=2) 
-            if response.status_code == 200:
-                return response.json().get("response", "").strip()
-        except Exception as e:
-            print(f"AI Error: {e}") # Sirf print karo, crash mat hone do
-            return ""
-        return ""
-
 def extract_text_from_resume(file_path):
     text = ""
     try:
@@ -80,10 +57,6 @@ def calculate_match_percentage(jd_json, resume_json):
     matched = j_skills.intersection(r_skills)
     score = (len(matched) / len(j_skills)) * 100
     return round(float(score), 2)
-
-# --- APP.PY COMPATIBILITY STUBS ---
-def analyze_resume_with_rules(text): return analyze_resume_text(text)
-def normalize_resume_json(data): return data
 
 # =====================================================
 # ENHANCED RESUME SUMMARY GENERATOR
@@ -268,5 +241,3 @@ def generate_professional_summary(resume_text: str) -> str:
     
     return "\n".join(summary_parts)
 
-def get_resume_summary(text): 
-    return generate_professional_summary(text)

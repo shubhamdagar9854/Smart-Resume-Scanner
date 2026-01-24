@@ -183,22 +183,6 @@ def get_resume_by_id(resume_id):
     conn.close()
     return resume
 
-def filter_resumes_by_keyword(keyword):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    query = f"%{keyword}%"
-    cur.execute("SELECT * FROM resumes WHERE name LIKE ? OR email LIKE ? OR summary LIKE ? ORDER BY id DESC", (query, query, query))
-    results = cur.fetchall()
-    conn.close()
-    return results
-
-# def filter_resumes_by_post(post_type):
-#     conn = sqlite3.connect(DB_NAME)
-#     cur = conn.cursor()
-#     cur.execute("SELECT * FROM resumes WHERE post_type = ?", (post_type,))
-#     results = cur.fetchall()
-#     conn.close()
-#     return results
 
 def verify_admin(username, password):
     conn = sqlite3.connect(DB_NAME)

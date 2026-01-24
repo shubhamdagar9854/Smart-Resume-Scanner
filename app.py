@@ -1,11 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 import os
 import logging
-import threading
 from werkzeug.utils import secure_filename
 import sqlite3
-import io
-from datetime import datetime
+
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Production environment setup
@@ -19,9 +17,8 @@ from rag_summary import (
     analyze_job_text,
     match_resume_with_job,
     extract_text_from_resume,
-    normalize_resume_json,
     calculate_match_percentage,
-    generate_professional_summary
+    generate_professional_summary,
 )
 
 from database import (
@@ -33,9 +30,8 @@ from database import (
     get_job_post_by_id,
     update_resume_summary,
     verify_admin,
-    filter_resumes_by_keyword,
     get_job_matches,
-    init_db
+    init_db,
 )
 
 app = Flask(__name__)
@@ -274,7 +270,7 @@ def admin_jobs():
                     "year", "years", "work", "education", "any", "the"
                 }
                 
-                # Clean JD skills - remove duplicates and garbage
+                # Job skills se garbage + duplicates remove → Clean list.
                 jd_skills_clean = []
                 jd_seen = set()
                 for skill in jd_json["skills"]:
@@ -283,7 +279,7 @@ def admin_jobs():
                         jd_skills_clean.append(skill_lower)
                         jd_seen.add(skill_lower)
                 
-                # Clean Resume skills - remove duplicates and garbage
+                # Resume skills clean (same garbage removal).
                 resume_skills_clean = []
                 resume_seen = set()
                 for skill in normalized_resume.get("skills", []):
@@ -383,123 +379,6 @@ def api_get_jobs():
     return jsonify({
         "jobs": [{"id": p[0], "title": p[1], "requirements": p[2]} for p in posts]
     })
-
-
-@app.route("/uploads/<filename>")
-def serve_upload(filename):
-    if not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
-    
-    try:
-        uploads_dir = app.config['UPLOAD_FOLDER']
-        file_path = os.path.join(uploads_dir, filename)
-        
-        if os.path.exists(file_path):
-            return send_from_directory(uploads_dir, filename)
-        else:
-            print(f"File not found: {file_path}")
-            flash("Resume file not found", "error")
-            return redirect(url_for("admin_dashboard"))
-            
-    except Exception as e:
-        print(f"Error serving file: {e}")
-        flash("Error opening resume file", "error")
-        return redirect(url_for("admin_dashboard"))
-
-
-@app.route("/admin/db-check")
-def admin_db_check():
-    if not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
-    
-    from database import get_all_resumes
-    resumes = get_all_resumes()
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Database Check</title>
-        <style>
-            body {{ font-family: Arial; margin: 20px; }}
-            table {{ border: 1px solid #ccc; width: 100%; }}
-            th, td {{ border: 1px solid #ccc; padding: 8px; }}
-            th {{ background: #f0f0f0; }}
-        </style>
-    </head>
-    <body>
-        <h1>🗄️ Database Check</h1>
-        <p>Total Resumes: {len(resumes)}</p>
-        <a href="/admin/dashboard">← Back to Dashboard</a>
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>File</th>
-                <th>Summary</th>
-            </tr>
-    """
-    
-    for resume in resumes:
-        html += f"""
-            <tr>
-                <td>{resume[0]}</td>
-                <td>{resume[1]}</td>
-                <td>{resume[2]}</td>
-                <td>{resume[3] or 'N/A'}</td>
-                <td>{resume[5] or 'No file'}</td>
-                <td>{(resume[6] or '')[:50] + '...' if resume[6] else 'No summary'}</td>
-            </tr>
-        """
-    
-    html += """
-        </table>
-    </body>
-    </html>
-    """
-    
-    return html
-
-
-@app.route("/admin/export-db")
-def export_database():
-    if not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
-    
-    import csv
-    from io import StringIO
-    from database import get_all_resumes
-    from flask import send_file
-    
-    resumes = get_all_resumes()
-    
-    output = StringIO()
-    writer = csv.writer(output)
-    
-    writer.writerow(['ID', 'Name', 'Email', 'Phone', 'Photo', 'File Path', 'Summary'])
-    
-    for resume in resumes:
-        writer.writerow([
-            resume[0],
-            resume[1],
-            resume[2],
-            resume[3] or '',
-            resume[4] or '',
-            resume[5] or '',
-            resume[6] or ''
-        ])
-    
-    output.seek(0)
-    response = send_file(
-        output,
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name='resumes_database.csv'
-    )
-    
-    return response
 
 
 @app.route("/api/get_matches/<int:job_id>")

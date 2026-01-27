@@ -1,4 +1,3 @@
-# RAG Implementation Dependencies
 sentence-transformers==2.2.2
 faiss-cpu==1.13.2
 numpy==1.24.3

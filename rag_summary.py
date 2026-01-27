@@ -1,42 +1,184 @@
 import json
-import requests
 import re
-import pdfplumber
-import docx
 import os
+import time
+import PyPDF2
+from google import genai  
+from dotenv import load_dotenv
 
-def extract_text_from_resume(file_path):
-    text = ""
-    try:
-        if file_path.endswith('.pdf'):
-            with pdfplumber.open(file_path) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
-        elif file_path.endswith('.docx'):
-            doc = docx.Document(file_path)
-            text = "\n".join([para.text for para in doc.paragraphs])
-    except Exception as e:
-        print(f"Extraction Error: {e}")
+load_dotenv()
+
+# Gemini API key
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-api-key-here')
+
+# Gemini client initialize (new syntax)
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+# Model name
+MODEL_NAME = 'models/gemini-2.5-flash'
+
+# 1. Model Load karne ka function
+def load_mistral_model():
+    print("✅ Gemini API ready!")
+    print("🌐 Using Google Gemini 2.0 Flash (Free tier)")
+    return True
+
+# 2. AI Summary banane ka function
+def generate_professional_summary(resume_text: str) -> str:
+    prompt = f"""
+    Create EXACTLY 5 bullet point professional resume summary:
     
-    return text.strip() if text.strip() else "No text found"
+    Resume content: {resume_text[:5000]}
+    
+    Requirements:
+    - Professional language
+    - Key skills first
+    - Experience summary  
+    - Technical expertise
+    - Soft skills last
+    - Start each bullet with strong verb/action word
+    
+    Format exactly like this:
+    * Skilled in [technologies]
+    * Experienced [role] with expertise in  
+    * Strong [skill] skills
+    * Proficient in [methodologies/tools]  
+    * Excellent [soft skill]
+    
+    Return ONLY the 5 bullet points, nothing else.
+    """
+    
+    # Retry logic for 503 errors
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt
+            )
+            return response.text
+        except Exception as e:
+            error_msg = str(e)
+            
+            # If model overloaded (503), wait and retry
+            if '503' in error_msg or 'UNAVAILABLE' in error_msg:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
+                    print(f"Model busy, retrying in {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+            
+            # If quota exceeded (429), use fallback summary
+            if '429' in error_msg or 'RESOURCE_EXHAUSTED' in error_msg:
+                return generate_fallback_summary(resume_text)
+            
+            # For other errors, return error message
+            return f"Error generating summary: {error_msg}"
+    
+    # If all retries failed, use fallback
+    return generate_fallback_summary(resume_text)
 
+
+def generate_fallback_summary(resume_text: str) -> str:
+    """Simple fallback summary when API fails"""
+    lines = resume_text.split('\n')
+    
+    # Extract basic info
+    skills = []
+    experience = []
+    
+    for line in lines:
+        line_lower = line.lower()
+        if any(tech in line_lower for tech in ['java', 'python', 'sql', 'spring', 'docker', 'aws', 'kubernetes']):
+            if len(line.strip()) < 100:
+                skills.append(line.strip())
+        if any(word in line_lower for word in ['lead', 'senior', 'consultant', 'engineer', 'developer']):
+            if len(line.strip()) < 100:
+                experience.append(line.strip())
+    
+    summary = "* " + " ".join(skills[:3]) if skills else "* Experienced professional with diverse technical skills"
+    summary += "\n* " + (experience[0] if experience else "Software professional with proven track record")
+    summary += "\n* Strong problem-solving and analytical capabilities"
+    summary += "\n* Proficient in modern development tools and methodologies"
+    summary += "\n* Excellent collaboration and communication skills"
+    
+    return summary
+
+# 3. PDF se text nikalne ka function
+def extract_text_from_resume(file_path):
+    try:
+        if not os.path.exists(file_path):
+            return f"Error: File {file_path} nahi mili."
+        with open(file_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            text = "".join([page.extract_text() for page in reader.pages])
+            return text
+    except Exception as e:
+        return f"Error: {e}"
+
+# 4. Main Process (Jo app.py call karega)
+def main_process_resume(file_path):
+    resume_text = extract_text_from_resume(file_path)
+    summary = generate_professional_summary(resume_text) 
+    return {
+        "ai_summary": summary, 
+        "raw_text": resume_text
+    }
+
+
+
+def normalize_resume_json(raw_resume):
+    """Clean and normalize resume JSON structure"""
+    normalized = {
+        "skills": raw_resume.get("skills", []),
+        "projects": raw_resume.get("projects", []),
+        "experience_years": raw_resume.get("experience_years", 0)
+    }
+    
+    # Clean skills (remove garbage words)
+    clean_skills = []
+    garbage = {"any", "the", "and", "project", "skill", "work", "experience"}
+    for skill in normalized["skills"]:
+        skill_str = str(skill).strip().lower()
+        if len(skill_str) > 2 and skill_str not in garbage:
+            clean_skills.append(skill_str)
+    
+    normalized["skills"] = clean_skills
+    return normalized
+
+
+# 5. Matching Logic Functions
 def analyze_resume_text(text):
-    return {"skills": ["Python", "Flask (Manual Test)"]}
+    # Enhanced skill extraction with Gemini
+    try:
+        prompt = f"Extract all technical skills from this resume as a comma-separated list. Only return skills, nothing else:\n{text[:3000]}"
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
+        skills_text = response.text
+        # Parse skills from response
+        skills = [s.strip() for s in skills_text.replace('\n', ',').split(',') if s.strip()]
+        return {"skills": skills[:20]}  # Limit to top 20
+    except:
+        # Fallback to basic extraction
+        potential_skills = re.split(r'[,\n\s/]', text.lower())
+        common_tech = {'python', 'java', 'flask', 'sql', 'javascript', 'react', 'node', 'html', 'css', 'mongodb', 'docker', 'aws'}
+        found = set()
+        for word in potential_skills:
+            word = word.strip('.,()')
+            if word in common_tech:
+                found.add(word.title())
+        return {"skills": list(found)}
 
 def analyze_job_text(text):
-    # Job description se skills nikalne ke liye dynamic cleaning
-    # Split by comma, space or newline
     potential_skills = re.split(r'[,\n\s/]', text.lower())
-    common_tech = {'python', 'java', 'flask', 'sql', 'javascript', 'react', 'node', 'html', 'css', 'mongodb', 'docker', 'aws'}
-    
+    common_tech = {'python', 'java', 'flask', 'sql', 'javascript', 'react', 'node', 'html', 'css', 'mongodb', 'docker', 'aws', 'kubernetes', 'django', 'fastapi', 'postgresql', 'redis', 'git', 'ci/cd', 'agile', 'scrum'}
     found = set()
     for word in potential_skills:
         word = word.strip('.,()')
-        if word in common_tech or len(word) > 2: # Length check to avoid garbage
-            if len(word) > 1: found.add(word.title())
-
+        if word in common_tech:
+            found.add(word.title())
     return {"skills": list(found), "must_have": list(found)}
 
 def match_resume_with_job(resume_text, job_text):
@@ -45,199 +187,28 @@ def match_resume_with_job(resume_text, job_text):
     return {
         "resume_data": resume_data, 
         "job_data": job_data,
-        "explanation": "Matching based on detected keywords and AI parsing."
+        "explanation": "Matching based on AI-detected keywords and semantic parsing."
     }
 
 def calculate_match_percentage(jd_json, resume_json):
-    # Ensuring keys are handled correctly from app.py
     j_skills = set([str(s).lower().strip() for s in jd_json.get("skills", jd_json.get("must_have", []))])
     r_skills = set([str(s).lower().strip() for s in resume_json.get("skills", [])])
-    
-    if not j_skills: return 0.0
+    if not j_skills: 
+        return 0.0
     matched = j_skills.intersection(r_skills)
     score = (len(matched) / len(j_skills)) * 100
     return round(float(score), 2)
 
-# =====================================================
-# ENHANCED RESUME SUMMARY GENERATOR
-# =====================================================
-def generate_professional_summary(resume_text: str) -> str:
-    """
-    Generate comprehensive professional summary from resume
-    Includes: Roles, Tech Stack, Domain, Certificates, Skills, Hobbies
-    """
-    
-    resume_lower = resume_text.lower()
-    summary_parts = []
-    
-    # ========================================
-    # 1️⃣ EXTRACT PREVIOUS ROLES
-    # ========================================
-    roles = []
-    role_keywords = [
-        'software engineer', 'developer', 'senior developer', 'lead developer',
-        'full stack', 'frontend', 'backend', 'data scientist', 'analyst',
-        'project manager', 'team lead', 'architect', 'consultant',
-        'intern', 'junior developer', 'ml engineer', 'devops engineer'
-    ]
-    
-    for role in role_keywords:
-        if role in resume_lower:
-            roles.append(role.title())
-    
-    # Remove duplicates while preserving order
-    roles = list(dict.fromkeys(roles))
-    
-    if roles:
-        summary_parts.append(f"• Professional with experience as {', '.join(roles[:3])}")
-    
-    # ========================================
-    # 2️⃣ EXTRACT TECH STACK & EXPERIENCE
-    # ========================================
-    tech_stack = {
-        'Languages': ['python', 'java', 'javascript', 'c++', 'c#', 'go', 'ruby', 'php', 'typescript'],
-        'Frameworks': ['react', 'angular', 'vue', 'django', 'flask', 'spring', 'node', 'express'],
-        'Databases': ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'oracle'],
-        'Cloud/DevOps': ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'git'],
-        'AI/ML': ['machine learning', 'deep learning', 'tensorflow', 'pytorch', 'nlp']
-    }
-    
-    found_tech = {}
-    for category, techs in tech_stack.items():
-        found = [tech for tech in techs if tech in resume_lower]
-        if found:
-            found_tech[category] = found
-    
-    if found_tech:
-        tech_summary = []
-        for category, techs in found_tech.items():
-            if techs:
-                tech_summary.append(f"{', '.join(techs[:3])}")
-        
-        if tech_summary:
-            summary_parts.append(f"• Proficient in {' | '.join(tech_summary[:2])} with hands-on experience")
-    
-    # ========================================
-    # 3️⃣ EXTRACT DOMAIN EXPERTISE
-    # ========================================
-    domains = {
-        'fintech': ['fintech', 'finance', 'banking', 'payment'],
-        'healthcare': ['healthcare', 'medical', 'health'],
-        'e-commerce': ['e-commerce', 'ecommerce', 'retail', 'shopping'],
-        'education': ['education', 'edtech', 'learning'],
-        'enterprise': ['enterprise', 'b2b', 'saas'],
-        'gaming': ['gaming', 'game development'],
-        'data analytics': ['analytics', 'data science', 'bi']
-    }
-    
-    found_domains = []
-    for domain, keywords in domains.items():
-        if any(kw in resume_lower for kw in keywords):
-            found_domains.append(domain.title())
-    
-    if found_domains:
-        summary_parts.append(f"• Domain expertise in {', '.join(found_domains[:2])}")
-    
-    # ========================================
-    # 4️⃣ EXTRACT CERTIFICATIONS
-    # ========================================
-    cert_keywords = [
-        'certified', 'certification', 'aws certified', 'azure certified',
-        'google cloud', 'pmp', 'scrum master', 'csm', 'comptia',
-        'cissp', 'ceh', 'oracle certified', 'microsoft certified'
-    ]
-    
-    certifications = []
-    for cert in cert_keywords:
-        if cert in resume_lower:
-            # Extract the line containing certification
-            for line in resume_text.split('\n'):
-                if cert in line.lower():
-                    certifications.append(line.strip()[:50])
-                    break
-    
-    if certifications:
-        summary_parts.append(f"• Certified professional: {certifications[0]}")
-    
-    # ========================================
-    # 5️⃣ EXTRACT CROSS-FUNCTIONAL EXPERIENCE
-    # ========================================
-    cross_functional = []
-    cf_keywords = {
-        'team collaboration': ['collaboration', 'cross-functional', 'team work'],
-        'agile methodologies': ['agile', 'scrum', 'kanban', 'sprint'],
-        'client interaction': ['client', 'stakeholder', 'customer facing'],
-        'leadership': ['led team', 'managed team', 'mentored', 'leadership'],
-        'project management': ['project management', 'delivery', 'roadmap']
-    }
-    
-    for skill, keywords in cf_keywords.items():
-        if any(kw in resume_lower for kw in keywords):
-            cross_functional.append(skill)
-    
-    if cross_functional:
-        summary_parts.append(f"• Experience in {', '.join(cross_functional[:2])}")
-    
-    # ========================================
-    # 6️⃣ EXTRACT INTERPERSONAL SKILLS
-    # ========================================
-    soft_skills = []
-    skill_keywords = {
-        'communication': ['communication', 'presentation', 'documentation'],
-        'problem-solving': ['problem solving', 'analytical', 'critical thinking'],
-        'adaptability': ['adaptable', 'flexible', 'quick learner'],
-        'time management': ['time management', 'prioritization', 'multitasking']
-    }
-    
-    for skill, keywords in skill_keywords.items():
-        if any(kw in resume_lower for kw in keywords):
-            soft_skills.append(skill)
-    
-    if soft_skills:
-        summary_parts.append(f"• Strong {', '.join(soft_skills[:2])} skills")
-    
-    # ========================================
-    # 7️⃣ EXTRACT HOBBIES/INTERESTS
-    # ========================================
-    hobbies = []
-    hobby_keywords = [
-        'reading', 'writing', 'blogging', 'open source', 'contributing',
-        'hackathon', 'coding competitions', 'sports', 'travel',
-        'photography', 'music', 'volunteering'
-    ]
-    
-    for hobby in hobby_keywords:
-        if hobby in resume_lower:
-            hobbies.append(hobby)
-    
-    if hobbies:
-        summary_parts.append(f"• Interests: {', '.join(hobbies[:3])}")
-    
-    # ========================================
-    # 8️⃣ EXTRACT YEARS OF EXPERIENCE
-    # ========================================
-    experience_years = 0
-    exp_patterns = [
-        r'(\d+)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience',
-        r'experience\s*:?\s*(\d+)\+?\s*(?:years?|yrs?)'
-    ]
-    
-    for pattern in exp_patterns:
-        match = re.search(pattern, resume_lower)
-        if match:
-            experience_years = int(match.group(1))
-            break
-    
-    # ========================================
-    # 🎯 BUILD FINAL SUMMARY
-    # ========================================
-    if not summary_parts:
-        return "• Technology professional with comprehensive software development expertise"
-    
-    # Add experience header if found
-    if experience_years > 0:
-        header = f"• {experience_years}+ years of professional experience\n"
-        return header + "\n".join(summary_parts)
-    
-    return "\n".join(summary_parts)
-
+# 6. Self-Test Block
+if __name__ == "__main__":
+    # Testing mode
+    test_pdf = "test_resume.pdf"
+    if os.path.exists(test_pdf):
+        print("Testing Mode...")
+        load_mistral_model()
+        res = main_process_resume(test_pdf)
+        print("\n--- AI SUMMARY ---\n", res["ai_summary"])
+        print("\n--- RAW TEXT (first 500 chars) ---\n", res["raw_text"][:500])
+    else:
+        print(f"⚠️  Test ke liye '{test_pdf}' file folder mein nahi hai.")
+        print("Koi bhi resume PDF ko 'test_resume.pdf' naam se save karo aur phir se run karo!")

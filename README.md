@@ -28,3 +28,6 @@ AI Resume Analyzer with professional summary generation and intelligent job matc
 - Admin can post jobs and view matching candidates
 - Professional summaries generated automatically
 - Skill-based matching with accurate percentages
+
+
+.\venv\Scripts\Activate.ps1

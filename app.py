@@ -19,6 +19,7 @@ from rag_summary import (
     extract_text_from_resume,
     calculate_match_percentage,
     generate_professional_summary,
+    normalize_resume_json,
 )
 
 from database import (
@@ -385,6 +386,14 @@ def api_get_jobs():
 def api_get_matches(job_id):
     matches = get_job_matches(job_id)
     return jsonify(matches)
+
+
+
+@app.route('/uploads/<filename>')
+def serve_upload(filename):
+    """Serve resume files from upload folder"""
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 
 
 # =========================

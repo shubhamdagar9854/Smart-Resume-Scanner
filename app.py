@@ -1,8 +1,8 @@
+import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 import os
 import logging
 from werkzeug.utils import secure_filename
-import sqlite3
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 

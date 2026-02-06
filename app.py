@@ -322,16 +322,18 @@ def admin_jobs():
                 print(f"🎯 PERCENTAGE: {final_percentage}%")
                 print("=" * 70 + "\n")
 
-                match_results.append({
-                    "name": r[1],
-                    "email": r[2],
-                    "match": final_percentage,  # <--- Ye 'match' key hona zaroori hai
-                    "match_percentage": final_percentage,  # For consistency
-                    "suggestions": ai_raw.get("explanation", ""),
-                    "matched_skills": matched_skills_for_ui,
-                    "missing_skills": [],
-                    "summary": r[6] if len(r) > 6 else ""
-                })
+                # Filter out 0% matches - only show matches > 0%
+                if final_percentage > 0:
+                    match_results.append({
+                        "name": r[1],
+                        "email": r[2],
+                        "match": final_percentage,  # <--- Ye 'match' key hona zaroori hai
+                        "match_percentage": final_percentage,  # For consistency
+                        "suggestions": ai_raw.get("explanation", ""),
+                        "matched_skills": matched_skills_for_ui,
+                        "missing_skills": [],
+                        "summary": r[6] if len(r) > 6 else ""
+                    })
 
             # Sort by percentage (highest first)
             match_results.sort(key=lambda x: x["match_percentage"], reverse=True)

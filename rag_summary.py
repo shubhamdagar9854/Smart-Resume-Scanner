@@ -191,13 +191,73 @@ def match_resume_with_job(resume_text, job_text):
     }
 
 def calculate_match_percentage(jd_json, resume_json):
-    j_skills = set([str(s).lower().strip() for s in jd_json.get("skills", jd_json.get("must_have", []))])
-    r_skills = set([str(s).lower().strip() for s in resume_json.get("skills", [])])
-    if not j_skills: 
-        return 0.0
-    matched = j_skills.intersection(r_skills)
-    score = (len(matched) / len(j_skills)) * 100
-    return round(float(score), 2)
+    """
+    AI-based percentage calculation using semantic understanding
+    """
+    try:
+        # Convert JSON back to text for AI analysis
+        job_skills = jd_json.get("skills", jd_json.get("must_have", []))
+        resume_skills = resume_json.get("skills", [])
+        
+        # AI prompt for intelligent matching
+        prompt = f"""
+        Calculate the match percentage between job requirements and candidate resume:
+        
+        JOB REQUIRED SKILLS: {', '.join(job_skills)}
+        CANDIDATE SKILLS: {', '.join(resume_skills)}
+        
+        Instructions:
+        - Analyze semantic similarity (not just exact matching)
+        - Consider related technologies and transferable skills
+        - Evaluate experience level compatibility
+        - Assess overall fit for the role
+        
+        Examples of semantic matching:
+        - "Python" matches "Python Development", "Django", "Flask"
+        - "JavaScript" matches "React", "Node.js", "Angular"
+        - "Database" matches "SQL", "MongoDB", "PostgreSQL"
+        - "Cloud" matches "AWS", "Azure", "GCP"
+        
+        Return ONLY a number between 0-100 representing the match percentage.
+        Consider partial matches and related technologies.
+        """
+        
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
+        
+        # Extract percentage from AI response
+        ai_response = response.text.strip()
+        
+        # Find percentage in response
+        percentage_match = re.search(r'\d+(\.\d+)?', ai_response)
+        
+        if percentage_match:
+            percentage = float(percentage_match.group())
+            # Ensure percentage is in valid range
+            percentage = max(0, min(100, percentage))
+            return round(percentage, 2)
+        else:
+            # Fallback to basic matching if AI doesn't return number
+            j_skills = set([str(s).lower().strip() for s in job_skills])
+            r_skills = set([str(s).lower().strip() for s in resume_skills])
+            if not j_skills: 
+                return 0.0
+            matched = j_skills.intersection(r_skills)
+            score = (len(matched) / len(j_skills)) * 100
+            return round(float(score), 2)
+            
+    except Exception as e:
+        print(f"AI percentage calculation failed: {e}")
+        # Fallback to basic mathematical matching
+        j_skills = set([str(s).lower().strip() for s in jd_json.get("skills", jd_json.get("must_have", []))])
+        r_skills = set([str(s).lower().strip() for s in resume_json.get("skills", [])])
+        if not j_skills: 
+            return 0.0
+        matched = j_skills.intersection(r_skills)
+        score = (len(matched) / len(j_skills)) * 100
+        return round(float(score), 2)
 
 # 6. Self-Test Block
 if __name__ == "__main__":

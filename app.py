@@ -18,6 +18,7 @@ from rag_summary import (
     match_resume_with_job,
     extract_text_from_resume,
     calculate_match_percentage,
+    calculate_match_percentage_full_ai,
     generate_professional_summary,
     normalize_resume_json,
 )
@@ -299,9 +300,10 @@ def admin_jobs():
                 }
 
                 # ========================================
-                # 🔥 CALCULATE FINAL PERCENTAGE
+                # 🔥 CALCULATE FINAL PERCENTAGE - FULL AI ANALYSIS
                 # ========================================
-                final_percentage = calculate_match_percentage(jd_json, resume_json)
+                # Use complete AI-based matching with full resume text vs full job text
+                final_percentage = calculate_match_percentage_full_ai(resume_text, description)
                 
                 # Find matched skills for UI display (no duplicates)
                 matched_skills_for_ui = []

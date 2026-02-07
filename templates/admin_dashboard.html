@@ -27,6 +27,44 @@
             {% endif %}
         {% endwith %}
 
+        <!-- 🤖 AI PROMPT DISPLAY BOX -->
+        <div class="prompt-display-box">
+            <div class="prompt-header">
+                <h3>🤖 Resume Summary AI Prompt</h3>
+                <button class="toggle-prompt-btn" onclick="togglePrompt()">👁️ Show/Hide</button>
+            </div>
+            <div class="prompt-content" id="promptContent" style="display: none;">
+                <div class="prompt-text">
+                    <h4>📝 Current AI Prompt:</h4>
+                    <pre>Create EXACTLY 5 bullet point professional resume summary:
+
+Resume content: [resume_text]
+
+Requirements:
+- Professional language
+- Key skills first
+- Experience summary  
+- Technical expertise
+- Soft skills last
+- Start each bullet with strong verb/action word
+
+Format exactly like this:
+* Skilled in [technologies]
+* Experienced [role] with expertise in  
+* Strong [skill] skills
+* Proficient in [methodologies/tools]  
+* Excellent [soft skill]
+
+Return ONLY the 5 bullet points, nothing else.</pre>
+                </div>
+                <div class="prompt-info">
+                    <p><strong>🎯 Model:</strong> Google Gemini 2.0 Flash</p>
+                    <p><strong>📊 Purpose:</strong> Generate professional 5-point summaries</p>
+                    <p><strong>🔄 Status:</strong> Active and working</p>
+                </div>
+            </div>
+        </div>
+
         <div class="resumes-container">
             {% if resumes %}
                 {% for resume in resumes %}
@@ -101,5 +139,21 @@
         {% endif %}
     </div>   
     <script src="{{ url_for('static', filename='admin_dashboard.js') }}"></script>
+    
+    <!-- 🤖 PROMPT TOGGLE SCRIPT -->
+    <script>
+        function togglePrompt() {
+            const promptContent = document.getElementById('promptContent');
+            const toggleBtn = document.querySelector('.toggle-prompt-btn');
+            
+            if (promptContent.style.display === 'none') {
+                promptContent.style.display = 'block';
+                toggleBtn.textContent = '👁️ Hide';
+            } else {
+                promptContent.style.display = 'none';
+                toggleBtn.textContent = '👁️ Show';
+            }
+        }
+    </script>
 </body>
 </html>

@@ -109,10 +109,55 @@ def extract_text_from_resume(file_path):
     try:
         if not os.path.exists(file_path):
             return f"Error: File {file_path} nahi mili."
-        with open(file_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            text = "".join([page.extract_text() for page in reader.pages])
-            return text
+        
+        # Try pdfplumber first (better for PDFs)
+        if file_path.lower().endswith('.pdf'):
+            try:
+                import pdfplumber
+                with pdfplumber.open(file_path) as pdf:
+                    text = ""
+                    for page in pdf.pages:
+                        text += page.extract_text() or ""
+                    return text.strip() if text.strip() else "Error: No text extracted from PDF"
+            except Exception as e:
+                print(f"pdfplumber failed: {e}")
+                # Fallback to PyPDF2
+                try:
+                    with open(file_path, 'rb') as file:
+                        reader = PyPDF2.PdfReader(file)
+                        text = "".join([page.extract_text() for page in reader.pages])
+                        return text.strip() if text.strip() else "Error: No text extracted from PDF"
+                except Exception as e2:
+                    print(f"PyPDF2 also failed: {e2}")
+                    return f"Error: Could not extract text from PDF: {e}"
+        
+        # Handle DOCX files
+        elif file_path.lower().endswith('.docx'):
+            try:
+                import docx
+                doc = docx.Document(file_path)
+                text = ""
+                for paragraph in doc.paragraphs:
+                    text += paragraph.text + "\n"
+                return text.strip() if text.strip() else "Error: No text extracted from DOCX"
+            except Exception as e:
+                return f"Error: Could not extract text from DOCX: {e}"
+        
+        # Handle DOC files (if python-docx supports)
+        elif file_path.lower().endswith('.doc'):
+            try:
+                import docx
+                doc = docx.Document(file_path)
+                text = ""
+                for paragraph in doc.paragraphs:
+                    text += paragraph.text + "\n"
+                return text.strip() if text.strip() else "Error: No text extracted from DOC"
+            except Exception as e:
+                return f"Error: Could not extract text from DOC: {e}"
+        
+        else:
+            return f"Error: Unsupported file format: {file_path}"
+            
     except Exception as e:
         return f"Error: {e}"
 
@@ -190,9 +235,85 @@ def match_resume_with_job(resume_text, job_text):
         "explanation": "Matching based on AI-detected keywords and semantic parsing."
     }
 
+def calculate_match_percentage_full_ai(resume_text, job_text):
+    """
+    COMPLETE AI-BASED matching - analyzes full resume vs full job text
+    No pre-processing, no skill extraction - pure AI semantic understanding
+    """
+    try:
+        # AI prompt for comprehensive resume-job analysis
+        prompt = f"""
+        Calculate the match percentage between this RESUME and JOB DESCRIPTION:
+        
+        ===================
+        JOB DESCRIPTION:
+        {job_text}
+        ===================
+        
+        ===================
+        RESUME:
+        {resume_text}
+        ===================
+        
+        Instructions:
+        - Analyze the COMPLETE resume text against COMPLETE job description
+        - Consider ALL aspects: skills, experience, education, projects, achievements
+        - Evaluate semantic similarity, not just keyword matching
+        - Assess transferable skills and related technologies
+        - Consider experience level compatibility
+        - Evaluate overall fit for the role
+        
+        Scoring Guidelines:
+        - 90-100%: Perfect match - candidate exceeds all requirements
+        - 75-89%: Strong match - candidate meets most requirements well
+        - 60-74%: Good match - candidate meets many requirements
+        - 40-59%: Partial match - candidate meets some requirements
+        - 20-39%: Weak match - candidate meets few requirements
+        - 0-19%: No match - candidate doesn't meet requirements
+        
+        Examples of semantic matching:
+        - "Python development" matches job requiring "Python"
+        - "Django framework" matches job requiring "Python frameworks"
+        - "React frontend" matches job requiring "JavaScript"
+        - "AWS cloud" matches job requiring "cloud experience"
+        - "Team leadership" matches job requiring "leadership skills"
+        
+        Return ONLY a single number between 0-100 representing the match percentage.
+        Consider the complete context of both documents.
+        """
+        
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
+        
+        # Extract percentage from AI response
+        ai_response = response.text.strip()
+        
+        # Find percentage in response
+        percentage_match = re.search(r'\d+(\.\d+)?', ai_response)
+        
+        if percentage_match:
+            percentage = float(percentage_match.group())
+            # Ensure percentage is in valid range
+            percentage = max(0, min(100, percentage))
+            return round(percentage, 2)
+        else:
+            # If AI doesn't return number, try to extract from text
+            numbers = re.findall(r'\d+(\.\d+)?', ai_response)
+            if numbers:
+                return round(float(numbers[0]), 2)
+            return 0.0
+            
+    except Exception as e:
+        print(f"Full AI matching failed: {e}")
+        # Fallback to basic analysis
+        return 0.0
+
 def calculate_match_percentage(jd_json, resume_json):
     """
-    AI-based percentage calculation using semantic understanding
+    LEGACY: AI-based percentage calculation using skill lists
+    Kept for backward compatibility
     """
     try:
         # Convert JSON back to text for AI analysis

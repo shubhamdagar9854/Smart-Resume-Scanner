@@ -42,6 +42,35 @@ def init_db():
     cur.execute("SELECT * FROM admin")
     if cur.fetchone() is None:
         cur.execute("INSERT INTO admin (username, password) VALUES (?, ?)", ("admin", "admin123"))
+    
+    # AI Feedback Table for RAG System
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ai_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER,
+            resume_id INTEGER,
+            match_percentage REAL,
+            admin_feedback TEXT,
+            error_description TEXT,
+            correction_suggestion TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (job_id) REFERENCES job_posts (id),
+            FOREIGN KEY (resume_id) REFERENCES resumes (id)
+        )
+    """)
+    
+    # Enhanced Prompts Table for RAG
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS enhanced_prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prompt_type TEXT,
+            original_prompt TEXT,
+            enhanced_prompt TEXT,
+            feedback_count INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
     conn.commit()
     conn.close()
 
@@ -191,3 +220,72 @@ def verify_admin(username, password):
     user = cur.fetchone()
     conn.close()
     return user is not None
+
+# --- AI FEEDBACK FUNCTIONS FOR RAG SYSTEM ---
+def add_ai_feedback(job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion):
+    """Add admin feedback for AI results"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO ai_feedback (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion))
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+def get_ai_feedback_by_type(prompt_type):
+    """Get feedback for specific prompt type"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT error_description, correction_suggestion 
+        FROM ai_feedback 
+        WHERE admin_feedback = ? OR correction_suggestion LIKE ?
+        ORDER BY created_at DESC 
+        LIMIT 5
+    """, (prompt_type, f"%{prompt_type}%"))
+    feedback = cur.fetchall()
+    conn.close()
+    return feedback
+
+def add_enhanced_prompt(prompt_type, original_prompt, enhanced_prompt):
+    """Add enhanced prompt to database"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT OR REPLACE INTO enhanced_prompts (prompt_type, original_prompt, enhanced_prompt, feedback_count)
+        VALUES (?, ?, ?, COALESCE((SELECT feedback_count FROM enhanced_prompts WHERE prompt_type = ?) + 1, 1))
+    """, (prompt_type, original_prompt, enhanced_prompt, prompt_type))
+    conn.commit()
+    conn.close()
+
+def get_enhanced_prompt(prompt_type):
+    """Get enhanced prompt for specific type"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT enhanced_prompt FROM enhanced_prompts 
+        WHERE prompt_type = ? 
+        ORDER BY feedback_count DESC 
+        LIMIT 1
+    """, (prompt_type,))
+    result = cur.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def get_all_ai_feedback():
+    """Get all AI feedback for admin review"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT af.*, j.title, r.name 
+        FROM ai_feedback af
+        JOIN job_posts j ON af.job_id = j.id
+        JOIN resumes r ON af.resume_id = r.id
+        ORDER BY af.created_at DESC
+    """)
+    feedback = cur.fetchall()
+    conn.close()
+    return feedback

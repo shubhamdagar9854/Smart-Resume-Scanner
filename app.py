@@ -18,8 +18,8 @@ from rag_summary import (
     match_resume_with_job,
     extract_text_from_resume,
     calculate_match_percentage,
-    calculate_match_percentage_full_ai,
-    generate_professional_summary,
+    calculate_match_percentage_full_ai_rag,
+    generate_professional_summary_rag,
     normalize_resume_json,
 )
 
@@ -28,6 +28,8 @@ from database import (
     get_all_job_posts,
     get_all_resumes,
     add_resume,
+    add_ai_feedback,
+    get_all_ai_feedback,
     get_resume_by_id,
     get_job_post_by_id,
     update_resume_summary,
@@ -101,7 +103,7 @@ def home_post():
             if resume_text:
                 try:
                     print("DEBUG: Generating enhanced summary...")
-                    summary = generate_professional_summary(resume_text)
+                    summary = generate_professional_summary_rag(resume_text)
                     print(f"DEBUG: Generated summary:\n{summary}")
                 except Exception as e:
                     print(f"DEBUG: Summary generation failed: {e}")
@@ -303,7 +305,7 @@ def admin_jobs():
                 # 🔥 CALCULATE FINAL PERCENTAGE - FULL AI ANALYSIS
                 # ========================================
                 # Use complete AI-based matching with full resume text vs full job text
-                final_percentage = calculate_match_percentage_full_ai(resume_text, description)
+                final_percentage = calculate_match_percentage_full_ai_rag(resume_text, description)
                 
                 # Find matched skills for UI display (no duplicates)
                 matched_skills_for_ui = []
@@ -398,6 +400,57 @@ def serve_upload(filename):
     """Serve resume files from upload folder"""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+# 🤖 AI FEEDBACK SYSTEM FOR RAG
+# =========================
+
+@app.route("/admin/feedback", methods=["POST"])
+def admin_feedback():
+    """Handle admin feedback for AI results"""
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+    
+    job_id = request.form.get("job_id")
+    resume_id = request.form.get("resume_id")
+    match_percentage = request.form.get("match_percentage")
+    correction_suggestion = request.form.get("correction_suggestion")
+    
+    if all([job_id, resume_id, match_percentage, correction_suggestion]):
+        try:
+            # Add feedback to database with RAG enhancement
+            feedback_id = add_ai_feedback(
+                int(job_id), 
+                int(resume_id), 
+                float(match_percentage), 
+                "percentage",  # Use "percentage" as feedback type for RAG
+                correction_suggestion,  # Use correction as error description
+                correction_suggestion  # Use correction as suggestion
+            )
+            
+            flash("✅ Feedback submitted successfully! AI will learn from this correction.", "success")
+            print(f"🤖 AI Feedback Added: ID={feedback_id}, Job={job_id}, Resume={resume_id}")
+            print(f"📝 Correction: {correction_suggestion}")
+            
+        except Exception as e:
+            flash(f"❌ Error saving feedback: {str(e)}", "error")
+            print(f"❌ Feedback Error: {e}")
+    else:
+        flash("❌ Please provide feedback for AI improvement", "error")
+    
+    # Redirect back to jobs page
+    return redirect(url_for("admin_jobs"))
+
+@app.route("/admin/feedback_history")
+def admin_feedback_history():
+    """Show all AI feedback history"""
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+    
+    try:
+        feedback_list = get_all_ai_feedback()
+        return render_template("feedback_history.html", feedback_list=feedback_list)
+    except Exception as e:
+        flash(f"❌ Error loading feedback: {str(e)}", "error")
+        return redirect(url_for("admin_dashboard"))
 
 
 # =========================

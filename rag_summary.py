@@ -3,8 +3,9 @@ import re
 import os
 import time
 import PyPDF2
-from google import genai  
+import google.generativeai as genai
 from dotenv import load_dotenv
+from database import get_enhanced_prompt, add_enhanced_prompt, get_ai_feedback_by_type
 
 load_dotenv()
 
@@ -12,7 +13,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-api-key-here')
 
 # Gemini client initialize (new syntax)
-client = genai.Client(api_key=GEMINI_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Model name
 MODEL_NAME = 'models/gemini-2.5-flash'
@@ -23,39 +24,58 @@ def load_mistral_model():
     print("🌐 Using Google Gemini 2.0 Flash (Free tier)")
     return True
 
-# 2. AI Summary banane ka function
-def generate_professional_summary(resume_text: str) -> str:
-    prompt = f"""
-    Create EXACTLY 5 bullet point professional resume summary:
+# 2. RAG-Enhanced AI Summary banane ka function
+def generate_professional_summary_rag(resume_text: str) -> str:
+    """Generate summary using RAG system with feedback integration"""
     
-    Resume content: {resume_text[:5000]}
+    # Get enhanced prompt from database
+    enhanced_prompt = get_enhanced_prompt("summary")
     
-    Requirements:
-    - Professional language
-    - Key skills first
-    - Experience summary  
-    - Technical expertise
-    - Soft skills last
-    - Start each bullet with strong verb/action word
+    # Get relevant feedback
+    feedback_list = get_ai_feedback_by_type("summary")
+    feedback_context = ""
+    if feedback_list:
+        feedback_context = "\n\nIMPORTANT - Learn from these previous corrections:\n"
+        for error, correction in feedback_list:
+            feedback_context += f"Previous Error: {error}\nCorrection: {correction}\n\n"
     
-    Format exactly like this:
-    * Skilled in [technologies]
-    * Experienced [role] with expertise in  
-    * Strong [skill] skills
-    * Proficient in [methodologies/tools]  
-    * Excellent [soft skill]
+    if enhanced_prompt:
+        prompt = enhanced_prompt.format(resume_text=resume_text[:5000])
+    else:
+        # Original prompt if no enhanced version exists
+        prompt = f"""
+        Create EXACTLY 5 bullet point professional resume summary:
+        
+        Resume content: {resume_text[:5000]}
+        
+        Requirements:
+        - Professional language
+        - Key skills first
+        - Experience summary  
+        - Technical expertise
+        - Soft skills last
+        - Start each bullet with strong verb/action word
+        
+        Format exactly like this:
+        * Skilled in [technologies]
+        * Experienced [role] with expertise in  
+        * Strong [skill] skills
+        * Proficient in [methodologies/tools]  
+        * Excellent [soft skill]
+        
+        Return ONLY the 5 bullet points, nothing else.
+        """
     
-    Return ONLY the 5 bullet points, nothing else.
-    """
+    # Add feedback context to prompt
+    if feedback_context:
+        prompt += feedback_context
     
     # Retry logic for 503 errors
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=prompt
-            )
+            model = genai.GenerativeModel(MODEL_NAME)
+            response = model.generate_content(prompt)
             return response.text
         except Exception as e:
             error_msg = str(e)
@@ -197,10 +217,8 @@ def analyze_resume_text(text):
     # Enhanced skill extraction with Gemini
     try:
         prompt = f"Extract all technical skills from this resume as a comma-separated list. Only return skills, nothing else:\n{text[:3000]}"
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt
-        )
+        model = genai.GenerativeModel(MODEL_NAME)
+        response = model.generate_content(prompt)
         skills_text = response.text
         # Parse skills from response
         skills = [s.strip() for s in skills_text.replace('\n', ',').split(',') if s.strip()]
@@ -235,57 +253,73 @@ def match_resume_with_job(resume_text, job_text):
         "explanation": "Matching based on AI-detected keywords and semantic parsing."
     }
 
-def calculate_match_percentage_full_ai(resume_text, job_text):
+def calculate_match_percentage_full_ai_rag(resume_text, job_text):
     """
-    COMPLETE AI-BASED matching - analyzes full resume vs full job text
-    No pre-processing, no skill extraction - pure AI semantic understanding
+    RAG-ENHANCED AI-BASED matching - analyzes full resume vs full job text with feedback
+    Uses Retrieval-Augmented Generation to improve AI performance from admin feedback
     """
     try:
-        # AI prompt for comprehensive resume-job analysis
-        prompt = f"""
-        Calculate the match percentage between this RESUME and JOB DESCRIPTION:
+        # Get enhanced prompt from database
+        enhanced_prompt = get_enhanced_prompt("percentage")
         
-        ===================
-        JOB DESCRIPTION:
-        {job_text}
-        ===================
+        # Get relevant feedback
+        feedback_list = get_ai_feedback_by_type("percentage")
+        feedback_context = ""
+        if feedback_list:
+            feedback_context = "\n\nIMPORTANT - Learn from these previous corrections:\n"
+            for error, correction in feedback_list:
+                feedback_context += f"Previous Error: {error}\nCorrection: {correction}\n\n"
         
-        ===================
-        RESUME:
-        {resume_text}
-        ===================
+        if enhanced_prompt:
+            prompt = enhanced_prompt.format(resume_text=resume_text, job_text=job_text)
+        else:
+            # Original prompt if no enhanced version exists
+            prompt = f"""
+            Calculate the match percentage between this RESUME and JOB DESCRIPTION:
+            
+            ===================
+            JOB DESCRIPTION:
+            {job_text}
+            ===================
+            
+            ===================
+            RESUME:
+            {resume_text}
+            ===================
+            
+            Instructions:
+            - Analyze the COMPLETE resume text against COMPLETE job description
+            - Consider ALL aspects: skills, experience, education, projects, achievements
+            - Evaluate semantic similarity, not just keyword matching
+            - Assess transferable skills and related technologies
+            - Consider experience level compatibility
+            - Evaluate overall fit for the role
+            
+            Scoring Guidelines:
+            - 90-100%: Perfect match - candidate exceeds all requirements
+            - 75-89%: Strong match - candidate meets most requirements well
+            - 60-74%: Good match - candidate meets many requirements
+            - 40-59%: Partial match - candidate meets some requirements
+            - 20-39%: Weak match - candidate meets few requirements
+            - 0-19%: No match - candidate doesn't meet requirements
+            
+            Examples of semantic matching:
+            - "Python development" matches job requiring "Python"
+            - "Django framework" matches job requiring "Python frameworks"
+            - "React frontend" matches job requiring "JavaScript"
+            - "AWS cloud" matches job requiring "cloud experience"
+            - "Team leadership" matches job requiring "leadership skills"
+            
+            Return ONLY a single number between 0-100 representing the match percentage.
+            Consider the complete context of both documents.
+            """
         
-        Instructions:
-        - Analyze the COMPLETE resume text against COMPLETE job description
-        - Consider ALL aspects: skills, experience, education, projects, achievements
-        - Evaluate semantic similarity, not just keyword matching
-        - Assess transferable skills and related technologies
-        - Consider experience level compatibility
-        - Evaluate overall fit for the role
+        # Add feedback context to prompt
+        if feedback_context:
+            prompt += feedback_context
         
-        Scoring Guidelines:
-        - 90-100%: Perfect match - candidate exceeds all requirements
-        - 75-89%: Strong match - candidate meets most requirements well
-        - 60-74%: Good match - candidate meets many requirements
-        - 40-59%: Partial match - candidate meets some requirements
-        - 20-39%: Weak match - candidate meets few requirements
-        - 0-19%: No match - candidate doesn't meet requirements
-        
-        Examples of semantic matching:
-        - "Python development" matches job requiring "Python"
-        - "Django framework" matches job requiring "Python frameworks"
-        - "React frontend" matches job requiring "JavaScript"
-        - "AWS cloud" matches job requiring "cloud experience"
-        - "Team leadership" matches job requiring "leadership skills"
-        
-        Return ONLY a single number between 0-100 representing the match percentage.
-        Consider the complete context of both documents.
-        """
-        
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt
-        )
+        model = genai.GenerativeModel(MODEL_NAME)
+        response = model.generate_content(prompt)
         
         # Extract percentage from AI response
         ai_response = response.text.strip()
@@ -343,10 +377,8 @@ def calculate_match_percentage(jd_json, resume_json):
         Consider partial matches and related technologies.
         """
         
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt
-        )
+        model = genai.GenerativeModel(MODEL_NAME)
+        response = model.generate_content(prompt)
         
         # Extract percentage from AI response
         ai_response = response.text.strip()
@@ -391,5 +423,5 @@ if __name__ == "__main__":
         print("\n--- AI SUMMARY ---\n", res["ai_summary"])
         print("\n--- RAW TEXT (first 500 chars) ---\n", res["raw_text"][:500])
     else:
-        print(f"⚠️  Test ke liye '{test_pdf}' file folder mein nahi hai.")
+        print(f"  Test ke liye '{test_pdf}' file folder mein nahi hai.")
         print("Koi bhi resume PDF ko 'test_resume.pdf' naam se save karo aur phir se run karo!")

@@ -1,10 +1,11 @@
 # 🚀 Smart Resume Scanner
 
-**🤖 AI-Powered Resume Analysis System with Professional Summary Generation and Intelligent Job Matching**
+**🤖 AI-Powered Resume Analysis System with RAG Feedback Learning and Intelligent Job Matching**
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-2.3.3-green.svg)](https://flask.palletsprojects.com)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.0%20Flash-orange.svg)](https://ai.google.dev/gemini)
+[![RAG System](https://img.shields.io/badge/RAG-Enhanced-purple.svg)](https://en.wikipedia.org/wiki/Retrieval-augmented_generation)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/shubhamdagar9854/Smart-Resume-Scanner.svg?style=social)](https://github.com/shubhamdagar9854/Smart-Resume-Scanner)
 [![GitHub forks](https://img.shields.io/github/forks/shubhamdagar9854/Smart-Resume-Scanner.svg?style=social)](https://github.com/shubhamdagar9854/Smart-Resume-Scanner)
@@ -14,12 +15,13 @@
 
 ## 📋 Overview
 
-Smart Resume Scanner is a cutting-edge web application that leverages **Google Gemini AI** to automate resume analysis, generate professional summaries, and perform intelligent job matching. Perfect for HR professionals, recruiters, and hiring managers seeking to streamline their recruitment process.
+Smart Resume Scanner is a cutting-edge web application that leverages **Google Gemini AI** with **Retrieval-Augmented Generation (RAG)** to automate resume analysis, generate professional summaries, and perform intelligent job matching. The system **learns from admin feedback** to continuously improve AI performance. Perfect for HR professionals, recruiters, and hiring managers seeking to streamline their recruitment process.
 
-### 🎯 **What Makes It Special?**
+### 🎯 **What Makes It Revolutionary?**
 - **🤖 Pure AI Intelligence** - Uses Google Gemini 2.0 Flash for advanced analysis
+- **🧠 RAG Learning System** - AI learns from admin corrections and improves over time
 - **📊 Smart Matching** - AI-powered semantic understanding, not just keywords
-- **🎨 Professional Interface** - Modern, responsive admin dashboard with prompt transparency
+- **🎨 Professional Interface** - Modern, responsive admin dashboard with feedback system
 - **🔒 Enterprise Ready** - Secure, scalable, and production-ready
 
 ---
@@ -33,11 +35,18 @@ Smart Resume Scanner is a cutting-edge web application that leverages **Google G
 - 📊 **Professional Summaries** - Generate 5-point professional summaries instantly
 - 🤖 **AI-Powered** - Google Gemini 2.0 Flash for intelligent analysis
 
-### 🤖 **AI-Powered Matching**
+### 🤖 **RAG-Enhanced AI System**
+- **🧠 Learning Capability** - AI learns from admin feedback continuously
+- **🔄 Feedback Integration** - Admin corrections automatically improve future analyses
+- **📈 Performance Improvement** - System gets smarter with each correction
+- **🎯 Error Reduction** - Fewer repeated mistakes over time
+- **🔍 Smart Retrieval** - Relevant feedback retrieved for specific analysis types
+
+### 🎯 **AI-Powered Matching**
 - 🎯 **Semantic Understanding** - AI analyzes complete resume vs complete job text
 - 📈 **Experience Analysis** - Considers experience level compatibility
 - 🏆 **Transferable Skills** - Recognizes related technologies and capabilities
-- 📊 **Intelligent Scoring** - No weightage system, pure AI intelligence
+- 📊 **Intelligent Scoring** - RAG-enhanced AI determines match percentages
 - 🔄 **Context-Aware** - Evaluates overall role fit, not just keywords
 
 ### 👨‍💼 **Admin Dashboard**
@@ -45,8 +54,9 @@ Smart Resume Scanner is a cutting-edge web application that leverages **Google G
 - 📝 **Job Posting** - Create and manage job postings
 - 👥 **Candidate Management** - View and analyze submitted resumes
 - 📊 **Matching Analytics** - Detailed candidate-job compatibility reports
-- 🤖 **AI Prompt Transparency** - See exact AI prompts used for analysis
-- 🎨 **Professional Interface** - Beautiful gradient boxes with toggle functionality
+- **🤖 Feedback System** - Submit corrections to improve AI performance
+- **🎨 Clean Interface** - Simplified, professional feedback forms
+- **📈 Learning Analytics** - Track AI improvement over time
 
 ### 🎨 **User Experience**
 - 📱 **Responsive Design** - Works perfectly on all devices
@@ -62,13 +72,14 @@ Smart Resume Scanner is a cutting-edge web application that leverages **Google G
 ### **Backend**
 - **Python 3.11+** - Core programming language
 - **Flask 2.3.3** - Web framework
-- **SQLite** - Database management
+- **SQLite** - Database management with RAG tables
 - **Werkzeug** - WSGI utilities
 
 ### **AI & Machine Learning**
 - **Google Gemini 2.0 Flash** - Advanced AI analysis and generation
+- **RAG System** - Retrieval-Augmented Generation for continuous learning
 - **Semantic Understanding** - Context-aware text analysis
-- **Intelligent Matching** - AI-powered resume-job compatibility
+- **Feedback Learning** - AI improves from admin corrections
 
 ### **Document Processing**
 - **pdfplumber 0.11.9** - Advanced PDF text extraction
@@ -146,8 +157,19 @@ Smart Resume Scanner is a cutting-edge web application that leverages **Google G
 3. **Post Jobs** - Create detailed job postings with required skills
 4. **View Candidates** - Browse submitted resumes and their AI analyses
 5. **Match Candidates** - Use intelligent AI matching to find best-fit candidates
-6. **View Analytics** - See detailed compatibility reports and match percentages
-7. **Export Data** - Download candidate reports and analytics
+6. **🤖 Submit Feedback** - Click "🤖 Feedback" on any AI result to provide corrections
+7. **Improve AI** - Watch the system learn from your feedback and improve over time
+8. **View Analytics** - See detailed compatibility reports and match percentages
+9. **Export Data** - Download candidate reports and analytics
+
+### **🤖 RAG Feedback System Usage**
+1. **Analyze Results** - Review AI-generated match percentages and summaries
+2. **Identify Errors** - Find incorrect AI analyses or missed information
+3. **Click Feedback** - Press "🤖 Feedback" button on any candidate
+4. **Submit Corrections** - Enter improvement suggestions in the feedback form
+5. **AI Learning** - System automatically incorporates your corrections
+6. **See Improvement** - Future analyses show improved accuracy
+7. **Track Progress** - Monitor AI performance over time
 
 ### **For Job Seekers**
 1. **Upload Resume** - Visit homepage and upload your PDF/DOCX resume
@@ -250,19 +272,28 @@ docker run -p 5000:5000 smart-resume-scanner
 
 ## 🎯 Features Deep Dive
 
-### **🤖 Smart Resume Analysis**
+### **🤖 RAG-Enhanced Resume Analysis**
 - **Skill Extraction** - Automatically identifies technical skills from resumes using AI
 - **Experience Parsing** - Extracts years of experience using regex patterns
 - **Education Detection** - Identifies degrees and institutions
 - **Project Recognition** - Detects specific projects and achievements
 - **Professional Summary** - Generates concise 5-point professional summaries
 - **AI-Powered** - Uses Google Gemini 2.0 Flash for intelligent analysis
+- **🧠 Learning System** - AI improves from admin feedback continuously
+
+### **🧠 RAG Feedback Learning System**
+- **Feedback Collection** - Admin submits corrections for AI mistakes
+- **Smart Retrieval** - Relevant feedback retrieved for specific analysis types
+- **Prompt Enhancement** - AI prompts automatically improved with corrections
+- **Continuous Learning** - System gets smarter with each feedback submission
+- **Error Reduction** - Fewer repeated mistakes over time
+- **Performance Tracking** - Monitor AI improvement metrics
 
 ### **🧠 Intelligent Matching Algorithm**
 - **Semantic Understanding** - AI analyzes complete resume vs complete job text
 - **Context-Aware Analysis** - Considers experience level and role compatibility
 - **Transferable Skills** - Recognizes related technologies and capabilities
-- **No Weightage System** - Pure AI intelligence determines match percentages
+- **RAG-Enhanced Scoring** - AI learns from feedback to improve matching
 - **Experience Compatibility** - Matches candidate experience with job requirements
 - **Overall Role Fit** - Evaluates comprehensive candidate suitability
 
@@ -271,9 +302,10 @@ docker run -p 5000:5000 smart-resume-scanner
 - **Job Posting** - Create detailed job descriptions with requirements
 - **AI Matching** - Automated candidate-job compatibility analysis
 - **Analytics Dashboard** - Comprehensive hiring analytics and insights
+- **🤖 Feedback Interface** - Simple, clean feedback submission forms
+- **Learning Analytics** - Track AI improvement over time
 - **Export Functionality** - Download candidate data and reports
-- **AI Prompt Transparency** - View exact AI prompts used for analysis
-- **Professional Interface** - Beautiful gradient boxes with toggle functionality
+- **Professional Interface** - Beautiful gradient designs with smooth interactions
 
 ---
 

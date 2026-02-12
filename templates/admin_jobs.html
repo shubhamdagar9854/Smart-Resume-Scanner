@@ -37,6 +37,7 @@
             align-items: center;
         }
 
+<<<<<<< HEAD
         .ai-analysis {
             background: #e3f2fd;
             padding: 10px;
@@ -57,6 +58,8 @@
             line-height: 1.4;
         }
 
+=======
+>>>>>>> 1bcc93125801d1e6e94068513293db2bd24f2055
         .candidate-info {
             flex: 1;
         }
@@ -309,6 +312,7 @@
                 <h4>{{ m.name }}</h4>
                 <p>📧 {{ m.email }}</p>
                 {% if m.matched_skills %}
+<<<<<<< HEAD
                 <p>✅ <strong>Matched Skills:</strong> {{ m.matched_skills|join(', ') }}</p>
                 {% endif %}
                 {% if m.ai_analysis %}
@@ -324,6 +328,28 @@
                 <button class="feedback-btn" onclick="toggleFeedbackForm('{{ item.job[0] }}_{{ loop.index }}')">
                       Feedback
                 </button>
+=======
+                <p>🎯 Matched Skills: {{ m.matched_skills|join(', ') }}</p>
+                {% endif %}
+                {% if m.summary %}
+                <p>📝 Summary: {{ m.summary[:100] }}...</p>
+                {% endif %}
+                <div class="candidate-actions">
+                    {% if m.id %}
+                    <a href="{{ url_for('admin_candidate_detail', candidate_id=m.id) }}" class="view-details-btn">👤
+                        View Details</a>
+                    {% else %}
+                    <span class="view-details-btn" style="background: grey;">No ID</span>
+                    {% endif %}
+                    {% if m.file_path %}
+                    <a href="{{ url_for('serve_upload', filename=m.file_path.split('\\')[-1]) }}"
+                        class="view-resume-btn" target="_blank">📄 View Resume</a>
+                    {% endif %}
+                    <button class="feedback-btn" onclick="toggleFeedbackForm('{{ item.job[0] }}_{{ loop.index }}')">
+                        🤖 Feedback
+                    </button>
+                </div>
+>>>>>>> 1bcc93125801d1e6e94068513293db2bd24f2055
             </div>
             <div class="match-percentage">{{ m.match_percentage }}%</div>
         </div>

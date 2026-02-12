@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin_dashboard.css') }}">
+</head>
+
+<body>
+    <div class="admin-container">
+        <div class="dashboard-header">
+            <h1>📊 Admin Dashboard</h1>
+            <div class="header-actions">
+                <a href="/admin/jobs" class="manage-jobs-btn">📌 Manage Job Posts</a>
+                <a href="{{ url_for('admin_logout') }}" class="logout-btn">Logout</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 🤖 AI PROMPT DISPLAY BOX -->
+        <div class="prompt-display-box">
+            <div class="prompt-header">
+                <h3>🤖 Resume Summary AI Prompt</h3>
+                <button class="toggle-prompt-btn" onclick="togglePrompt()">👁️ Show/Hide</button>
+            </div>
+            <div class="prompt-content" id="promptContent" style="display: none;">
+                <div class="prompt-text">
+                    <h4>📝 Current AI Prompt:</h4>
+                    <pre>Create EXACTLY 5 bullet point professional resume summary:
+
+Resume content: [resume_text]
+
+Requirements:
+- Professional language
+- Key skills first
+- Experience summary  
+- Technical expertise
+- Soft skills last
+- Start each bullet with strong verb/action word
+
+Format exactly like this:
+* Skilled in [technologies]
+* Experienced [role] with expertise in  
+* Strong [skill] skills
+* Proficient in [methodologies/tools]  
+* Excellent [soft skill]
+
+Return ONLY the 5 bullet points, nothing else.</pre>
+                </div>
+                <div class="prompt-info">
+                    <p><strong>🎯 Model:</strong> Google Gemini 2.0 Flash</p>
+                    <p><strong>📊 Purpose:</strong> Generate professional 5-point summaries</p>
+                    <p><strong>🔄 Status:</strong> Active and working</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="resumes-container">
+            {% if resumes %}
+                {% for resume in resumes %}
+                <div class="resume-card">
+                    <div class="resume-info">
+                        {% if resume[4] %}
+                            <div class="candidate-photo">
+                                <a href="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" target="_blank">
+                                    <img src="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" 
+                                        alt="{{ resume[1] }}" class="photo-img">
+                                </a>
+                            </div>
+                        {% else %}
+                            <div class="candidate-photo">
+                                <span class="photo-placeholder">👤</span>
+                            </div>
+                        {% endif %}
+                        <div class="candidate-details">
+                            <h3><a href="{{ url_for('admin_candidate_detail', candidate_id=resume[0]) }}" style="color: #2c3e50; text-decoration: none;">{{ resume[1] }}</a></h3>
+                            <p><strong>Email:</strong> {{ resume[2] }}</p>
+                            {% if resume[3] %}
+                                <p><strong>Phone:</strong> {{ resume[3] if resume[3] != 'None' else 'Not provided' }}</p>
+                                <a href="https://wa.me/{{ resume[3].replace('+', '').replace(' ', '').replace('-', '') if resume[3] and resume[3] != 'None' else '#' }}" 
+                                class="whatsapp-btn" target="_blank">
+                                    💬 WhatsApp
+                                </a>
+                            {% endif %}
+                            <div class="action-buttons">
+                               <a href="{{ url_for('serve_upload', filename=resume[5].replace('\\','/').split('/')[-1]) if resume[5] else '#' }}" target="_blank">
+                                    📄 View Resume
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="resume-summary">
+                        <h4>📝 Summary:</h4>
+                        {% if resume[6] and 'Generating' not in resume[6] and 'failed' not in resume[6].lower() %}
+                            <div class="summary-content">
+                                <pre style="white-space: pre-line; font-family: inherit; margin: 0;">{{ resume[6] }}</pre>
+                            </div>
+                        {% else %}
+                            <div class="no-summary-section">
+                                <p>Summary not ready. Please refresh the page.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <h2>No resumes found.</h2>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Pagination -->
+        {% if total > per_page %}
+        <div class="pagination">
+            {% if has_prev %}
+                <a href="{{ url_for('admin_dashboard', page=prev_page) }}" class="pagination-btn">← Previous</a>
+            {% endif %}
+            
+            <span class="pagination-info">
+                Page {{ page }} of {{ (total + per_page - 1) // per_page }} ({{ total }} total)
+            </span>
+            
+            {% if has_next %}
+                <a href="{{ url_for('admin_dashboard', page=next_page) }}" class="pagination-btn">Next →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>   
+    <script src="{{ url_for('static', filename='admin_dashboard.js') }}"></script>
+    
+    <!-- 🤖 PROMPT TOGGLE SCRIPT -->
+    <script>
+        function togglePrompt() {
+            const promptContent = document.getElementById('promptContent');
+            const toggleBtn = document.querySelector('.toggle-prompt-btn');
+            
+            if (promptContent.style.display === 'none') {
+                promptContent.style.display = 'block';
+                toggleBtn.textContent = '👁️ Hide';
+            } else {
+                promptContent.style.display = 'none';
+                toggleBtn.textContent = '👁️ Show';
+            }
+        }
+    </script>
+</body>
+</html>

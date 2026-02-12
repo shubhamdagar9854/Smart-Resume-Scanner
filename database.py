@@ -6,14 +6,13 @@ import json
 DB_NAME = "resumes.db"
 
 # Use SQLite for now (MySQL setup later)
-def get_connection():
-    """Get database connection (SQLite for now)"""
-    return sqlite3.connect(DB_NAME)
 
 # --- INITIALIZE DATABASE ---
 def init_db():
-    conn = get_connection()
+    """Initialize database with all required tables"""
+    conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
+    
     # Resumes Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS resumes (
@@ -25,8 +24,8 @@ def init_db():
             file_path TEXT,
             summary TEXT
         )
-        """)
-
+    """)
+    
     # Job Posts Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS job_posts (
@@ -37,6 +36,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
     # Admin Table
     cur.execute("CREATE TABLE IF NOT EXISTS admin (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)")
     cur.execute("SELECT * FROM admin")
@@ -67,6 +67,21 @@ def init_db():
             original_prompt TEXT,
             enhanced_prompt TEXT,
             feedback_count INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # HR Users Table for HR profiles
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hr_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            full_name TEXT,
+            phone TEXT,
+            department TEXT,
+            position TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -160,6 +175,24 @@ def get_job_matches(job_id):
         
         # Only show matches with at least 10% match
         if match_percent >= 10:
+            # Generate AI analysis for why not 100%
+            ai_analysis = ""
+            if match_percent == 100:
+                ai_analysis = "Perfect match! Candidate meets all job requirements."
+            elif match_percent >= 90:
+                ai_analysis = f"Excellent match! Candidate meets most requirements ({match_percent}% match). Minor improvements needed for 100%."
+            elif match_percent >= 70:
+                ai_analysis = f"Good match! Candidate meets many requirements ({match_percent}% match). Some key skills or experience may be missing."
+            elif match_percent >= 50:
+                ai_analysis = f"Fair match! Candidate meets some requirements ({match_percent}% match). Significant gaps in skills or experience."
+            else:
+                ai_analysis = f"Poor match! Candidate meets few requirements ({match_percent}% match). Major gaps in skills or experience."
+            
+            # Add specific missing skills information if available
+            if match_percent < 100 and len(matched_keywords) < len(job_skills):
+                missing_skills = [skill for skill in job_skills if skill not in matched_keywords]
+                ai_analysis += f" Missing skills: {', '.join(missing_skills[:3])}. Candidate has {len(matched_keywords)}/{len(job_skills)} required skills."
+            
             matches.append({
                 "id": r[0],
                 "name": r[1],
@@ -169,7 +202,8 @@ def get_job_matches(job_id):
                 "summary": r[5] or "",
                 "match": match_percent,
                 "match_percentage": match_percent,  # Add this key for template
-                "matched_skills": matched_keywords
+                "matched_skills": matched_keywords,
+                "ai_analysis": ai_analysis  # 
             })
 
     # Sort by match percentage (highest first)
@@ -289,3 +323,53 @@ def get_all_ai_feedback():
     feedback = cur.fetchall()
     conn.close()
     return feedback
+
+def add_hr_user(username, email, password, full_name, phone, department, position):
+    """Add HR user to database"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO hr_users (username, email, password, full_name, phone, department, position)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (username, email, password, full_name, phone, department, position))
+        new_id = cur.lastrowid
+        conn.commit()
+        return new_id
+    except Exception as e:
+        conn.close()
+        return f"Error adding HR user: {e}"
+
+def get_hr_user_by_username(username):
+    """Get HR user by username"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM hr_users WHERE username = ?", (username,))
+    user = cur.fetchone()
+    conn.close()
+    return user
+
+def get_all_hr_users():
+    """Get all HR users"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM hr_users ORDER BY created_at DESC")
+    users = cur.fetchall()
+    conn.close()
+    return users
+
+def update_hr_user_profile(user_id, full_name, phone, department, position):
+    """Update HR user profile"""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE hr_users 
+            SET full_name = ?, phone = ?, department = ?, position = ?
+            WHERE id = ?
+        """, (full_name, phone, department, position, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.close()
+        return f"Error updating HR user: {e}"

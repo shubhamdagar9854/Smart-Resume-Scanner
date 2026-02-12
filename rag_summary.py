@@ -184,12 +184,11 @@ def extract_text_from_resume(file_path):
 # 4. Main Process (Jo app.py call karega)
 def main_process_resume(file_path):
     resume_text = extract_text_from_resume(file_path)
-    summary = generate_professional_summary(resume_text) 
+    summary = generate_professional_summary_rag(resume_text) 
     return {
         "ai_summary": summary, 
         "raw_text": resume_text
     }
-
 
 
 def normalize_resume_json(raw_resume):
@@ -213,204 +212,163 @@ def normalize_resume_json(raw_resume):
 
 
 # 5. Matching Logic Functions
-def analyze_resume_text(text):
-    # Enhanced skill extraction with Gemini
+def get_ai_match_analysis(resume_text, job_text, match_percentage):
+    """
+    Get AI analysis for why candidate didn't get 100% match
+    Uses AI to provide specific reasoning - ONLY AI, NO FALLBACK
+    """
     try:
-        prompt = f"Extract all technical skills from this resume as a comma-separated list. Only return skills, nothing else:\n{text[:3000]}"
+        if match_percentage >= 100:
+            return "Perfect match! Candidate meets all job requirements."
+        
+        prompt = f"""
+        Analyze why this candidate didn't get 100% match for the job:
+
+        JOB DESCRIPTION:
+        {job_text}
+
+        RESUME:
+        {resume_text}
+
+        Current Match: {match_percentage}%
+
+        Explain in 1-2 sentences why this candidate didn't achieve 100% match.
+        Be specific about missing skills, experience, or qualifications.
+        Focus on the most important gaps.
+
+        Examples:
+        - "Missing React framework experience which is specifically required."
+        - "Lacks 5+ years of experience required for senior position."
+        - "Missing database skills (SQL/NoSQL) mentioned in job requirements."
+        """
+        
         model = genai.GenerativeModel(MODEL_NAME)
         response = model.generate_content(prompt)
-        skills_text = response.text
-        # Parse skills from response
-        skills = [s.strip() for s in skills_text.replace('\n', ',').split(',') if s.strip()]
-        return {"skills": skills[:20]}  # Limit to top 20
-    except:
-        # Fallback to basic extraction
-        potential_skills = re.split(r'[,\n\s/]', text.lower())
-        common_tech = {'python', 'java', 'flask', 'sql', 'javascript', 'react', 'node', 'html', 'css', 'mongodb', 'docker', 'aws'}
-        found = set()
-        for word in potential_skills:
-            word = word.strip('.,()')
-            if word in common_tech:
-                found.add(word.title())
-        return {"skills": list(found)}
-
-def analyze_job_text(text):
-    potential_skills = re.split(r'[,\n\s/]', text.lower())
-    common_tech = {'python', 'java', 'flask', 'sql', 'javascript', 'react', 'node', 'html', 'css', 'mongodb', 'docker', 'aws', 'kubernetes', 'django', 'fastapi', 'postgresql', 'redis', 'git', 'ci/cd', 'agile', 'scrum'}
-    found = set()
-    for word in potential_skills:
-        word = word.strip('.,()')
-        if word in common_tech:
-            found.add(word.title())
-    return {"skills": list(found), "must_have": list(found)}
-
-def match_resume_with_job(resume_text, job_text):
-    resume_data = analyze_resume_text(resume_text)
-    job_data = analyze_job_text(job_text)
-    return {
-        "resume_data": resume_data, 
-        "job_data": job_data,
-        "explanation": "Matching based on AI-detected keywords and semantic parsing."
-    }
+        
+        if response and response.text:
+            return response.text.strip()[:200]  # Limit to 200 characters
+        else:
+            return f"AI analysis unavailable. Current match: {match_percentage}%"
+            
+    except Exception as e:
+        print(f"AI analysis failed: Quota exceeded")
+        # Simple error message for quota exceeded
+        if "429" in str(e) or "quota" in str(e).lower():
+            return "AI quota exceeded. Please try again later."
+        else:
+            print(f"AI analysis failed: {e}")
+            return f"AI analysis unavailable. Current match: {match_percentage}%"
 
 def calculate_match_percentage_full_ai_rag(resume_text, job_text):
     """
-    RAG-ENHANCED AI-BASED matching - analyzes full resume vs full job text with feedback
+    RAG-ENHANCED AI-BASED matching - Enhanced with proper feedback learning
     Uses Retrieval-Augmented Generation to improve AI performance from admin feedback
     """
     try:
-        # Get enhanced prompt from database
-        enhanced_prompt = get_enhanced_prompt("percentage")
-        
-        # Get relevant feedback
+        # Get relevant feedback for RAG
         feedback_list = get_ai_feedback_by_type("percentage")
-        feedback_context = ""
+        
+        # Build enhanced prompt with feedback context
         if feedback_list:
-            feedback_context = "\n\nIMPORTANT - Learn from these previous corrections:\n"
-            for error, correction in feedback_list:
-                feedback_context += f"Previous Error: {error}\nCorrection: {correction}\n\n"
-        
-        if enhanced_prompt:
-            prompt = enhanced_prompt.format(resume_text=resume_text, job_text=job_text)
-        else:
-            # Original prompt if no enhanced version exists
+            # Create RAG-enhanced prompt with feedback
+            feedback_context = "\n\n=== LEARNING FROM PREVIOUS FEEDBACK ===\n"
+            for i, (error, correction) in enumerate(feedback_list[:3]):  # Use last 3 feedbacks
+                feedback_context += f"FEEDBACK {i+1}:\n"
+                feedback_context += f"Previous Error: {error}\n"
+                feedback_context += f"Admin Correction: {correction}\n"
+                feedback_context += f"Learning: Apply this correction to current analysis\n\n"
+            
+            # Enhanced RAG prompt
             prompt = f"""
-            Calculate the match percentage between this RESUME and JOB DESCRIPTION:
-            
-            ===================
-            JOB DESCRIPTION:
-            {job_text}
-            ===================
-            
-            ===================
-            RESUME:
-            {resume_text}
-            ===================
-            
-            Instructions:
-            - Analyze the COMPLETE resume text against COMPLETE job description
-            - Consider ALL aspects: skills, experience, education, projects, achievements
-            - Evaluate semantic similarity, not just keyword matching
-            - Assess transferable skills and related technologies
-            - Consider experience level compatibility
-            - Evaluate overall fit for the role
-            
-            Scoring Guidelines:
-            - 90-100%: Perfect match - candidate exceeds all requirements
-            - 75-89%: Strong match - candidate meets most requirements well
-            - 60-74%: Good match - candidate meets many requirements
-            - 40-59%: Partial match - candidate meets some requirements
-            - 20-39%: Weak match - candidate meets few requirements
-            - 0-19%: No match - candidate doesn't meet requirements
-            
-            Examples of semantic matching:
-            - "Python development" matches job requiring "Python"
-            - "Django framework" matches job requiring "Python frameworks"
-            - "React frontend" matches job requiring "JavaScript"
-            - "AWS cloud" matches job requiring "cloud experience"
-            - "Team leadership" matches job requiring "leadership skills"
-            
-            Return ONLY a single number between 0-100 representing the match percentage.
-            Consider the complete context of both documents.
-            """
+You are an intelligent resume matching AI that learns from feedback.
+
+{feedback_context}
+
+CURRENT TASK:
+Calculate the match percentage between this RESUME and JOB DESCRIPTION:
+
+===================
+JOB DESCRIPTION:
+{job_text}
+===================
+
+===================
+RESUME:
+{resume_text}
+===================
+
+CRITICAL INSTRUCTIONS:
+1. Apply ALL learnings from the feedback above
+2. Consider experience requirements seriously - if job requires 9+ years and candidate is student, DO NOT give high percentage
+3. If feedback indicates 100% should be given for perfect skill matches, apply that logic
+4. Analyze COMPLETE resume vs COMPLETE job description
+5. Return ONLY a single number between 0-100
+
+SCORING GUIDELINES:
+- 90-100%: Perfect match - candidate exceeds ALL requirements including experience
+- 75-89%: Strong match - candidate meets most requirements well
+- 60-74%: Good match - candidate meets many requirements  
+- 40-59%: Partial match - candidate meets some requirements
+- 20-39%: Weak match - candidate meets few requirements
+- 0-19%: No match - candidate doesn't meet requirements
+
+Based on the feedback learnings above, calculate the FINAL match percentage.
+Return ONLY the number:
+"""
+        else:
+            # Fallback prompt if no feedback
+            prompt = f"""
+Calculate the match percentage between this RESUME and JOB DESCRIPTION:
+
+===================
+JOB DESCRIPTION:
+{job_text}
+===================
+
+===================
+RESUME:
+{resume_text}
+===================
+
+Return ONLY a single number between 0-100 representing the match percentage.
+"""
         
-        # Add feedback context to prompt
-        if feedback_context:
-            prompt += feedback_context
+        print(f" RAG Enhanced Prompt: Using {len(feedback_list) if feedback_list else 0} feedback items")
         
         model = genai.GenerativeModel(MODEL_NAME)
         response = model.generate_content(prompt)
         
         # Extract percentage from AI response
         ai_response = response.text.strip()
+        print(f" AI Raw Response: '{ai_response}'")
         
-        # Find percentage in response
-        percentage_match = re.search(r'\d+(\.\d+)?', ai_response)
+        # Find percentage in response - look for the LAST percentage number
+        percentage_matches = re.findall(r'\d+(\.\d+)?', ai_response)
+        print(f" Regex Matches Found: {percentage_matches}")
         
-        if percentage_match:
-            percentage = float(percentage_match.group())
-            # Ensure percentage is in valid range
-            percentage = max(0, min(100, percentage))
-            return round(percentage, 2)
+        if percentage_matches:
+            # Take the LAST percentage (final answer after considering feedback)
+            try:
+                # Clean the percentage string - remove quotes and whitespace
+                last_match = percentage_matches[-1].strip().strip('"').strip("'")
+                print(f" Before Cleaning: '{percentage_matches[-1]}'")
+                print(f" After Cleaning: '{last_match}'")
+                percentage = float(last_match)
+                # Ensure percentage is in valid range
+                percentage = max(0, min(100, percentage))
+                print(f" Final Percentage: {percentage}%")
+                return round(percentage, 2)
+            except (ValueError, IndexError) as e:
+                print(f" Could not convert percentage to float: {percentage_matches[-1]} | Error: {e}")
+                return 0.0
         else:
-            # If AI doesn't return number, try to extract from text
-            numbers = re.findall(r'\d+(\.\d+)?', ai_response)
-            if numbers:
-                return round(float(numbers[0]), 2)
+            print(" No percentage found in AI response")
             return 0.0
             
     except Exception as e:
         print(f"Full AI matching failed: {e}")
         # Fallback to basic analysis
         return 0.0
-
-def calculate_match_percentage(jd_json, resume_json):
-    """
-    LEGACY: AI-based percentage calculation using skill lists
-    Kept for backward compatibility
-    """
-    try:
-        # Convert JSON back to text for AI analysis
-        job_skills = jd_json.get("skills", jd_json.get("must_have", []))
-        resume_skills = resume_json.get("skills", [])
-        
-        # AI prompt for intelligent matching
-        prompt = f"""
-        Calculate the match percentage between job requirements and candidate resume:
-        
-        JOB REQUIRED SKILLS: {', '.join(job_skills)}
-        CANDIDATE SKILLS: {', '.join(resume_skills)}
-        
-        Instructions:
-        - Analyze semantic similarity (not just exact matching)
-        - Consider related technologies and transferable skills
-        - Evaluate experience level compatibility
-        - Assess overall fit for the role
-        
-        Examples of semantic matching:
-        - "Python" matches "Python Development", "Django", "Flask"
-        - "JavaScript" matches "React", "Node.js", "Angular"
-        - "Database" matches "SQL", "MongoDB", "PostgreSQL"
-        - "Cloud" matches "AWS", "Azure", "GCP"
-        
-        Return ONLY a number between 0-100 representing the match percentage.
-        Consider partial matches and related technologies.
-        """
-        
-        model = genai.GenerativeModel(MODEL_NAME)
-        response = model.generate_content(prompt)
-        
-        # Extract percentage from AI response
-        ai_response = response.text.strip()
-        
-        # Find percentage in response
-        percentage_match = re.search(r'\d+(\.\d+)?', ai_response)
-        
-        if percentage_match:
-            percentage = float(percentage_match.group())
-            # Ensure percentage is in valid range
-            percentage = max(0, min(100, percentage))
-            return round(percentage, 2)
-        else:
-            # Fallback to basic matching if AI doesn't return number
-            j_skills = set([str(s).lower().strip() for s in job_skills])
-            r_skills = set([str(s).lower().strip() for s in resume_skills])
-            if not j_skills: 
-                return 0.0
-            matched = j_skills.intersection(r_skills)
-            score = (len(matched) / len(j_skills)) * 100
-            return round(float(score), 2)
-            
-    except Exception as e:
-        print(f"AI percentage calculation failed: {e}")
-        # Fallback to basic mathematical matching
-        j_skills = set([str(s).lower().strip() for s in jd_json.get("skills", jd_json.get("must_have", []))])
-        r_skills = set([str(s).lower().strip() for s in resume_json.get("skills", [])])
-        if not j_skills: 
-            return 0.0
-        matched = j_skills.intersection(r_skills)
-        score = (len(matched) / len(j_skills)) * 100
-        return round(float(score), 2)
 
 # 6. Self-Test Block
 if __name__ == "__main__":

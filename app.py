@@ -45,7 +45,7 @@ from database import (
 )
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
+app.secret_key = os.environ.get('SECRET_KEY', 'your_secret_key_here')
 
 
 UPLOAD_FOLDER = '/tmp' 

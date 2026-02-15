@@ -6,11 +6,17 @@ from werkzeug.utils import secure_filename
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-# Production environment setup
+# Production environment setup - FIXED FOR DEPLOYMENT
 if os.environ.get('FLASK_ENV') == 'production':
     debug_mode = False
+    # Use deployment-safe paths
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/app/uploads')
+    DB_NAME = os.environ.get('DATABASE_PATH', '/app/resumes.db')
 else:
     debug_mode = True
+    # Local development paths
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp')
+    DB_NAME = os.environ.get('DATABASE_PATH', 'resumes.db')
 
 from rag_summary import (
     extract_text_from_resume,
@@ -47,10 +53,8 @@ from database import (
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your_secret_key_here')
 
-
-UPLOAD_FOLDER = '/tmp' 
+# Use environment-aware upload folder
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -147,6 +151,7 @@ def admin_login():
 
         if verify_admin(username, password):
             session["admin_logged_in"] = True
+            session['dashboard_first_load'] = False  # Reset flag on fresh login
             flash("Login successful", "success")
             return redirect(url_for("admin_dashboard"))
         else:
@@ -184,6 +189,13 @@ def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
     
+    # Check if this is a reload (no session flag)
+    if not session.get('dashboard_first_load', False):
+        session['dashboard_first_load'] = True
+        # Show blank page on first load/reload
+        return render_template("admin_dashboard.html", resumes=[], page=1, has_prev=False, has_next=False, prev_page=None, next_page=None, total=0, per_page=5)
+    
+    # Show paginated resumes
     page = request.args.get('page', 1, type=int)
     per_page = 5
     

@@ -2,8 +2,8 @@ import sqlite3
 import os
 import json
 
-# Database Configuration
-DB_NAME = "resumes.db"
+# Database configuration - FIXED FOR DEPLOYMENT
+DB_NAME = os.environ.get('DATABASE_PATH', 'resumes.db')
 
 # Use SQLite for now (MySQL setup later)
 

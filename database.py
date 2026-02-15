@@ -138,13 +138,90 @@ def get_job_matches(job_id):
     # Words ke liye regex (2+ letters)
     words = re.findall(r'\b[a-zA-Z]{2,}\b', job_text)
     
-    # Common technical skills aur qualifications
-    tech_keywords = ['python', 'java', 'javascript', 'react', 'node', 'sql', 'mongodb', 'aws', 'docker', 
-                   'git', 'agile', 'scrum', 'api', 'rest', 'html', 'css', 'angular', 'vue', 'django', 
-                   'flask', 'machine', 'learning', 'ai', 'data', 'science', 'analytics', 'devops']
+    # Common technical skills aur qualifications - comprehensive for all possible scenarios
+    tech_keywords = [
+        # Programming Languages
+        'python', 'java', 'javascript', 'typescript', 'c', 'cpp', 'csharp', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'scala',
+        # Web Technologies
+        'react', 'angular', 'vue', 'node', 'express', 'django', 'flask', 'spring', 'laravel', 'rails', 'asp', 'dotnet',
+        'html', 'css', 'sass', 'less', 'bootstrap', 'tailwind', 'jquery', 'ajax', 'json', 'xml',
+        # Databases
+        'sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'elasticsearch', 'cassandra', 'dynamodb', 'firebase',
+        # Cloud & DevOps
+        'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'gitlab', 'github', 'terraform', 'ansible',
+        'ci', 'cd', 'cicd', 'pipeline', 'deployment', 'monitoring', 'logging', 'security',
+        # Software Engineering
+        'agile', 'scrum', 'kanban', 'waterfall', 'tdd', 'bdd', 'unit', 'integration', 'e2e', 'testing',
+        'api', 'rest', 'graphql', 'soap', 'microservices', 'monolith', 'serverless', 'lambda', 'functions',
+        # Architecture & Design
+        'architecture', 'design', 'pattern', 'solid', 'dry', 'kiss', 'mvp', 'mvc', 'mvp', 'clean', 'code',
+        'algorithm', 'structure', 'optimization', 'performance', 'scalability', 'reliability', 'availability',
+        # Data & Analytics
+        'data', 'analytics', 'science', 'machine', 'learning', 'ai', 'ml', 'dl', 'nlp', 'cv', 'statistics',
+        'tableau', 'powerbi', 'excel', 'python', 'r', 'sas', 'spss', 'mining', 'warehousing', 'etl',
+        # Mobile Development
+        'mobile', 'ios', 'android', 'reactnative', 'flutter', 'swift', 'kotlin', 'xamarin', 'cordova', 'phonegap',
+        'pwa', 'responsive', 'adaptive', 'hybrid', 'native',
+        # Leadership & Management
+        'leader', 'leadership', 'team', 'manager', 'lead', 'senior', 'junior', 'principal', 'staff', 'head',
+        'director', 'vp', 'cto', 'architect', 'consultant', 'advisor', 'mentor', 'coach', 'trainer',
+        # Business & Domain
+        'business', 'strategy', 'planning', 'execution', 'delivery', 'operations', 'finance', 'marketing', 'sales',
+        'retail', 'insurance', 'banking', 'healthcare', 'education', 'government', 'manufacturing', 'logistics',
+        'ecommerce', 'fintech', 'healthtech', 'edtech', 'saas', 'paas', 'iaas', 'b2b', 'b2c', 'c2c',
+        # Experience & Skills
+        'experience', 'expert', 'skilled', 'proficient', 'knowledge', 'hands', 'practical', 'theoretical',
+        'handling', 'client', 'customer', 'stakeholder', 'vendor', 'partner', 'supplier', 'contractor',
+        'communication', 'presentation', 'documentation', 'reporting', 'analysis', 'research', 'development',
+        # Tools & Technologies
+        'git', 'svn', 'mercurial', 'jira', 'confluence', 'slack', 'teams', 'zoom', 'office', 'gdrive',
+        'vscode', 'intellij', 'eclipse', 'xcode', 'androidstudio', 'postman', 'swagger', 'insomnia',
+        'webpack', 'vite', 'parcel', 'gulp', 'grunt', 'npm', 'yarn', 'maven', 'gradle', 'pip',
+        # Security & Compliance
+        'security', 'authentication', 'authorization', 'encryption', 'ssl', 'tls', 'oauth', 'jwt', 'saml',
+        'gdpr', 'hipaa', 'sox', 'pci', 'compliance', 'audit', 'risk', 'vulnerability', 'penetration',
+        # Emerging Technologies
+        'blockchain', 'crypto', 'web3', 'metaverse', 'ar', 'vr', 'iot', 'edge', 'quantum', '5g',
+        'robotics', 'automation', 'rpa', 'chatbot', 'voice', 'assistant', 'siri', 'alexa', 'google',
+        # General Terms
+        'developer', 'engineer', 'software', 'web', 'mobile', 'backend', 'frontend', 'fullstack', 'database',
+        'cloud', 'testing', 'unit', 'integration', 'deployment', 'microservices', 'architecture', 'design',
+        'pattern', 'algorithm', 'structure', 'domain', 'grpc', 'cicd', 'expert', 'handling', 'client'
+    ]
     
-    education_keywords = ['bsc', 'msc', 'bachelor', 'master', 'phd', 'degree', 'engineering', 
-                         'computer', 'science', 'information', 'technology']
+    education_keywords = [
+        # Degrees & Education Levels
+        'bsc', 'msc', 'bachelor', 'master', 'phd', 'degree', 'engineering', 'computer', 'science', 'information', 'technology',
+        'btech', 'mtech', 'be', 'me', 'bca', 'mca', 'bcom', 'mcom', 'ba', 'ma', 'bs', 'ms', 'mba', 'pgdm', 'diploma',
+        'certificate', 'certification', 'course', 'training', 'workshop', 'seminar', 'conference', 'symposium', 'webinar',
+        # Education Fields
+        'computer', 'science', 'engineering', 'information', 'technology', 'software', 'hardware', 'networking', 'cybersecurity',
+        'data', 'analytics', 'artificial', 'intelligence', 'machine', 'learning', 'deep', 'neural', 'robotics', 'automation',
+        'business', 'administration', 'management', 'finance', 'accounting', 'marketing', 'sales', 'human', 'resources',
+        'economics', 'statistics', 'mathematics', 'physics', 'chemistry', 'biology', 'biotechnology', 'pharmacy', 'medicine',
+        'law', 'legal', 'arts', 'humanities', 'social', 'psychology', 'sociology', 'philosophy', 'history', 'geography',
+        'architecture', 'civil', 'mechanical', 'electrical', 'electronics', 'telecommunication', 'chemical', 'aerospace',
+        'agriculture', 'environmental', 'sustainable', 'renewable', 'energy', 'petroleum', 'mining', 'geology',
+        'journalism', 'mass', 'communication', 'media', 'advertising', 'public', 'relations', 'design', 'fashion',
+        'hospitality', 'tourism', 'hotel', 'management', 'culinary', 'arts', 'music', 'dance', 'theater', 'film',
+        'education', 'teaching', 'academic', 'research', 'library', 'information', 'science', 'literature', 'linguistics',
+        # Education Institutions
+        'university', 'college', 'institute', 'school', 'academy', 'polytechnic', 'institution', 'center', 'department',
+        'faculty', 'campus', 'online', 'distance', 'learning', 'virtual', 'remote', 'hybrid', 'part', 'time', 'full',
+        # Education Quality
+        'accredited', 'recognized', 'approved', 'licensed', 'certified', 'qualified', 'professional', 'technical',
+        'vocational', 'industrial', 'commercial', 'government', 'private', 'public', 'international', 'global',
+        # Education Terms
+        'gpa', 'percentage', 'grade', 'score', 'rank', 'merit', 'distinction', 'first', 'class', 'honors', 'cum', 'laude',
+        'thesis', 'dissertation', 'project', 'assignment', 'internship', 'apprenticeship', 'placement', 'campus', 'recruitment',
+        'entrance', 'exam', 'test', 'assessment', 'evaluation', 'competition', 'olympiad', 'scholarship', 'fellowship',
+        'grant', 'assistantship', 'research', 'assistant', 'teaching', 'assistant', 'lab', 'assistant', 'graduate',
+        'undergraduate', 'postgraduate', 'doctoral', 'postdoctoral', 'continuing', 'professional', 'development',
+        # Skills & Knowledge
+        'knowledge', 'skill', 'ability', 'competency', 'expertise', 'proficiency', 'mastery', 'specialization',
+        'general', 'studies', 'foundation', 'principles', 'fundamentals', 'basics', 'advanced', 'intermediate',
+        'beginner', 'novice', 'expert', 'professional', 'practitioner', 'specialist', 'consultant', 'advisor'
+    ]
     
     # Unique words filter karte hain
     job_skills = list(set([word for word in words if len(word) > 2]))

@@ -126,30 +126,67 @@ def generate_fallback_summary(resume_text: str) -> str:
 
 # 3. PDF se text nikalne ka function
 def extract_text_from_resume(file_path):
+    """Extract text from PDF or DOCX files with enhanced error handling"""
     try:
         if not os.path.exists(file_path):
-            return f"Error: File {file_path} nahi mili."
+            return f"Error: File not found: {file_path}"
         
-        # Try pdfplumber first (better for PDFs)
+        # Handle PDF files with multiple methods
         if file_path.lower().endswith('.pdf'):
+            text = ""
+            
+            # Method 1: Try pdfplumber first (most reliable)
             try:
                 import pdfplumber
                 with pdfplumber.open(file_path) as pdf:
-                    text = ""
-                    for page in pdf.pages:
-                        text += page.extract_text() or ""
-                    return text.strip() if text.strip() else "Error: No text extracted from PDF"
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += f"\n--- Page {page_num} ---\n{page_text}\n"
+                
+                if text.strip():
+                    print(f"✅ pdfplumber extracted {len(text)} characters")
+                    return text.strip()
             except Exception as e:
-                print(f"pdfplumber failed: {e}")
-                # Fallback to PyPDF2
-                try:
-                    with open(file_path, 'rb') as file:
-                        reader = PyPDF2.PdfReader(file)
-                        text = "".join([page.extract_text() for page in reader.pages])
-                        return text.strip() if text.strip() else "Error: No text extracted from PDF"
-                except Exception as e2:
-                    print(f"PyPDF2 also failed: {e2}")
-                    return f"Error: Could not extract text from PDF: {e}"
+                print(f"❌ pdfplumber failed: {e}")
+            
+            # Method 2: Try PyPDF2 as fallback
+            try:
+                import PyPDF2
+                with open(file_path, 'rb') as file:
+                    reader = PyPDF2.PdfReader(file)
+                    for page_num, page in enumerate(reader.pages, 1):
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += f"\n--- Page {page_num} ---\n{page_text}\n"
+                
+                if text.strip():
+                    print(f"✅ PyPDF2 extracted {len(text)} characters")
+                    return text.strip()
+            except Exception as e:
+                print(f"❌ PyPDF2 failed: {e}")
+            
+            # Method 3: Try OCR as last resort
+            try:
+                import pytesseract
+                from PIL import Image
+                import pdf2image
+                
+                print("🔄 Trying OCR extraction...")
+                images = pdf2image.convert_from_path(file_path)
+                text = ""
+                for i, image in enumerate(images, 1):
+                    page_text = pytesseract.image_to_string(image)
+                    text += f"\n--- Page {i} ---\n{page_text}\n"
+                
+                if text.strip():
+                    print(f"✅ OCR extracted {len(text)} characters")
+                    return text.strip()
+            except Exception as e:
+                print(f"❌ OCR failed: {e}")
+            
+            # If all methods fail, return a meaningful error
+            return f"Error: Could not extract text from PDF using multiple methods. File may be corrupted, password-protected, or scanned images only. Please check the file: {file_path}"
         
         # Handle DOCX files
         elif file_path.lower().endswith('.docx'):
@@ -159,24 +196,35 @@ def extract_text_from_resume(file_path):
                 text = ""
                 for paragraph in doc.paragraphs:
                     text += paragraph.text + "\n"
-                return text.strip() if text.strip() else "Error: No text extracted from DOCX"
+                
+                if text.strip():
+                    print(f"✅ DOCX extracted {len(text)} characters")
+                    return text.strip()
+                else:
+                    return f"Error: No text found in DOCX file: {file_path}"
             except Exception as e:
                 return f"Error: Could not extract text from DOCX: {e}"
         
-        # Handle DOC files (if python-docx supports)
+        # Handle DOC files
         elif file_path.lower().endswith('.doc'):
             try:
+                # Try docx library first (some .doc files work)
                 import docx
                 doc = docx.Document(file_path)
                 text = ""
                 for paragraph in doc.paragraphs:
                     text += paragraph.text + "\n"
-                return text.strip() if text.strip() else "Error: No text extracted from DOC"
+                
+                if text.strip():
+                    print(f"✅ DOC extracted {len(text)} characters")
+                    return text.strip()
+                else:
+                    return f"Error: No text found in DOC file. Try converting to DOCX: {file_path}"
             except Exception as e:
-                return f"Error: Could not extract text from DOC: {e}"
+                return f"Error: Could not extract text from DOC. Please convert to DOCX: {e}"
         
         else:
-            return f"Error: Unsupported file format: {file_path}"
+            return f"Error: Unsupported file format: {file_path}. Supported formats: PDF, DOCX, DOC"
             
     except Exception as e:
         return f"Error: {e}"
@@ -222,7 +270,7 @@ def get_ai_match_analysis(resume_text, job_text, match_percentage):
             return "Perfect match! Candidate meets all job requirements."
         
         prompt = f"""
-        Analyze why this candidate didn't get 100% match for the job:
+        Analyze why this candidate didn't get 100% match for the job in exactly ONE sentence (max 150 characters):
 
         JOB DESCRIPTION:
         {job_text}
@@ -232,21 +280,25 @@ def get_ai_match_analysis(resume_text, job_text, match_percentage):
 
         Current Match: {match_percentage}%
 
-        Explain in 1-2 sentences why this candidate didn't achieve 100% match.
-        Be specific about missing skills, experience, or qualifications.
-        Focus on the most important gaps.
+        Examples (follow this format):
+        - "Missing insurance domain experience and 10+ years leadership required for Java Lead role."
+        - "Lacks React framework and 5+ years experience needed for senior position."
+        - "Missing SQL database skills and team management experience mentioned in requirements."
 
-        Examples:
-        - "Missing React framework experience which is specifically required."
-        - "Lacks 5+ years of experience required for senior position."
-        - "Missing database skills (SQL/NoSQL) mentioned in job requirements."
+        Return ONLY ONE complete sentence explaining the main gaps.
         """
         
         model = genai.GenerativeModel(MODEL_NAME)
         response = model.generate_content(prompt)
         
         if response and response.text:
-            return response.text.strip()[:200]  # Limit to 200 characters
+            analysis = response.text.strip()
+            # Remove any quotes and ensure it's a complete sentence
+            analysis = analysis.strip('"').strip("'").strip()
+            # Ensure it ends with a period
+            if not analysis.endswith('.'):
+                analysis += '.'
+            return analysis[:150]  # Limit to 150 characters for complete display
         else:
             return f"AI analysis unavailable. Current match: {match_percentage}%"
             
@@ -303,14 +355,22 @@ CRITICAL INSTRUCTIONS:
 3. If feedback indicates 100% should be given for perfect skill matches, apply that logic
 4. Analyze COMPLETE resume vs COMPLETE job description
 5. Return ONLY a single number between 0-100
+6. DO NOT use weightage calculations - match based on actual requirements fulfillment
 
 SCORING GUIDELINES:
-- 90-100%: Perfect match - candidate exceeds ALL requirements including experience
+- 90-100%: Perfect match - candidate meets ALL requirements including experience
 - 75-89%: Strong match - candidate meets most requirements well
 - 60-74%: Good match - candidate meets many requirements  
 - 40-59%: Partial match - candidate meets some requirements
 - 20-39%: Weak match - candidate meets few requirements
 - 0-19%: No match - candidate doesn't meet requirements
+
+IMPORTANT: 
+- Check if ALL "must have" requirements are met
+- Consider experience requirements (years, leadership, domain)
+- Check technical skills mentioned in job description
+- DO NOT calculate based on weightage or percentages
+- Give 100% only if ALL requirements are perfectly met
 
 Based on the feedback learnings above, calculate the FINAL match percentage.
 Return ONLY the number:
@@ -330,7 +390,23 @@ RESUME:
 {resume_text}
 ===================
 
-Return ONLY a single number between 0-100 representing the match percentage.
+IMPORTANT INSTRUCTIONS:
+- Check if ALL "must have" requirements are met
+- Consider experience requirements (years, leadership, domain)
+- Check technical skills mentioned in job description
+- DO NOT calculate based on weightage or percentages
+- Give 100% only if ALL requirements are perfectly met
+- Return ONLY a single number between 0-100
+
+SCORING GUIDELINES:
+- 90-100%: Perfect match - candidate meets ALL requirements including experience
+- 75-89%: Strong match - candidate meets most requirements well
+- 60-74%: Good match - candidate meets many requirements  
+- 40-59%: Partial match - candidate meets some requirements
+- 20-39%: Weak match - candidate meets few requirements
+- 0-19%: No match - candidate doesn't meet requirements
+
+Return ONLY the number:
 """
         
         print(f" RAG Enhanced Prompt: Using {len(feedback_list) if feedback_list else 0} feedback items")
@@ -342,28 +418,31 @@ Return ONLY a single number between 0-100 representing the match percentage.
         ai_response = response.text.strip()
         print(f" AI Raw Response: '{ai_response}'")
         
-        # Find percentage in response - look for the LAST percentage number
-        percentage_matches = re.findall(r'\d+(\.\d+)?', ai_response)
-        print(f" Regex Matches Found: {percentage_matches}")
+        # Extract percentage from AI response - look for the LAST valid percentage (0-100)
+        # Try multiple patterns to find the final percentage
+        patterns = [
+            r'(\d{1,3})%',  # Direct percentage like "75%"
+            r'Match Percentage = (\d+)',  # From calculation format
+            r'percentage.*?(\d+)',  # From "percentage: 75"
+            r'(\d+)%',  # Any number followed by %
+            r'final.*?(\d+)',  # Final answer
+            r'answer.*?(\d+)',  # Answer format
+        ]
         
-        if percentage_matches:
-            # Take the LAST percentage (final answer after considering feedback)
-            try:
-                # Clean the percentage string - remove quotes and whitespace
-                last_match = percentage_matches[-1].strip().strip('"').strip("'")
-                print(f" Before Cleaning: '{percentage_matches[-1]}'")
-                print(f" After Cleaning: '{last_match}'")
-                percentage = float(last_match)
-                # Ensure percentage is in valid range
-                percentage = max(0, min(100, percentage))
-                print(f" Final Percentage: {percentage}%")
-                return round(percentage, 2)
-            except (ValueError, IndexError) as e:
-                print(f" Could not convert percentage to float: {percentage_matches[-1]} | Error: {e}")
-                return 0.0
-        else:
-            print(" No percentage found in AI response")
-            return 0.0
+        percentage = 0.0
+        for pattern in patterns:
+            matches = re.findall(pattern, ai_response.lower())
+            if matches:
+                try:
+                    percentage = float(matches[-1])  # Take last match
+                    if 0 <= percentage <= 100:  # Valid range
+                        break
+                except ValueError:
+                    continue
+        
+        print(f" Regex Matches Found: {percentage}%")
+        print(f" Extracted Percentage: {percentage}%")
+        return round(percentage, 2)
             
     except Exception as e:
         print(f"Full AI matching failed: {e}")

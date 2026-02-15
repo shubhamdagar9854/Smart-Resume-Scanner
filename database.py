@@ -230,6 +230,10 @@ def get_job_matches(job_id):
     for keyword in tech_keywords + education_keywords:
         if keyword in job_text:
             job_skills.append(keyword)
+    
+    # DEBUG: Print job requirements found
+    print(f" JOB REQUIREMENTS FOUND: {job_skills}")
+    print(f" JOB TEXT ANALYSIS: {job_text}")
 
     cursor.execute("SELECT id, name, email, phone, file_path, summary FROM resumes")
     resumes = cursor.fetchall()
@@ -239,16 +243,59 @@ def get_job_matches(job_id):
     for r in resumes:
         resume_text = (r[5] or "").lower()  # Summary is now at index 5
         
+        # DEBUG: Print resume analysis
+        print(f" RESUME ANALYSIS: {resume_text[:500]}...")  # Show first 500 chars instead of 200
+        
         # Count matching keywords
         matched_keywords = []
         for skill in job_skills:
             if skill in resume_text:
                 matched_keywords.append(skill)
         
-        # Calculate match percentage
+        # DEBUG: Print what matched
+        print(f" MATCHED KEYWORDS: {matched_keywords}")
+        print(f" TOTAL JOB SKILLS: {len(job_skills)}")
+        
+        # Calculate match percentage with experience and domain validation
         match_percent = 0
         if job_skills:
-            match_percent = int((len(matched_keywords) / len(job_skills)) * 100)
+            # Basic keyword matching
+            keyword_match = int((len(matched_keywords) / len(job_skills)) * 100)
+            
+            # Experience validation - check for years requirements
+            experience_penalty = 0
+            if any(year_req in job_text for year_req in ['10plus', '10+', '9+', '8+', '5+', '3+']):
+                # Check if resume indicates sufficient experience
+                resume_has_exp = any(exp_word in resume_text for exp_word in 
+                    ['year', 'years', 'experience', 'exp', 'worked', 'employment'])
+                # Also check for actual years mentioned in resume
+                has_years = any(year_pattern in resume_text for year_pattern in 
+                    ['10+', '9+', '8+', '5+', '3+', '10 years', '9 years', '8 years'])
+                
+                if not resume_has_exp and not has_years:
+                    experience_penalty = 30  # Major penalty for missing experience
+                # Don't penalize if "expected graduation" but also has experience indicators
+                elif any(student_word in resume_text.lower() for student_word in 
+                    ['student', 'graduate']) and not has_years:
+                    experience_penalty = 25  # Penalty only if student without experience
+            
+            # Domain validation - check for specific domain requirements
+            domain_penalty = 0
+            if any(domain_req in job_text for domain_req in ['insurance', 'banking', 'healthcare', 'finance']):
+                if not any(domain_word in resume_text for domain_word in 
+                    ['insurance', 'banking', 'healthcare', 'finance', 'financial']):
+                    domain_penalty = 25  # Major penalty for missing domain
+            
+            # Leadership validation - check for leadership requirements
+            leadership_penalty = 0
+            if any(lead_req in job_text for lead_req in ['leader', 'lead', 'team', 'manager', 'handle team']):
+                if not any(lead_word in resume_text for lead_word in 
+                    ['lead', 'leader', 'manager', 'team', 'managed', 'leadership']):
+                    leadership_penalty = 20  # Penalty for missing leadership
+            
+            # Calculate final percentage with penalties
+            match_percent = keyword_match - experience_penalty - domain_penalty - leadership_penalty
+            match_percent = max(0, min(100, match_percent))  # Ensure within 0-100 range
         
         # Only show matches with at least 10% match
         if match_percent >= 10:

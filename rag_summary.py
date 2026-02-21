@@ -4,9 +4,15 @@ import os
 import time
 import PyPDF2
 import google.generativeai as genai
+import warnings
+
+# Suppress deprecation warning temporarily
+warnings.filterwarnings("ignore", category=FutureWarning)
 from dotenv import load_dotenv
 from database import get_enhanced_prompt, add_enhanced_prompt, get_ai_feedback_by_type
 
+# Load .env.local first for local development, then fallback to .env
+load_dotenv('.env.local')
 load_dotenv()
 
 # Gemini API key

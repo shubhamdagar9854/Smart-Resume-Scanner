@@ -3,7 +3,7 @@ import re
 import os
 import time
 import PyPDF2
-import google.generativeai as genai
+import google.genai as genai
 import warnings
 
 # Suppress deprecation warning temporarily

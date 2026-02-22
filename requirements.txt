@@ -10,7 +10,7 @@ requests
 pytest
 pytest-flask
 python-dotenv
-google-genai
+google-genai>=1.0.0
 pytesseract
 pdf2image
 Pillow

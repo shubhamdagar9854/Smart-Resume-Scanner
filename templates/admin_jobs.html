@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Admin - Job Posts & AI Matching</title>
+
+    <style>
+
+        body {
+
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+            margin: 0;
+
+            padding: 20px;
+
+            background-color: #f5f5f5;
+
+            color: #333;
+
+        }
+
+
+
+        h1, h2, h3, h4 {
+
+            color: #2c3e50;
+
+        }
+
+
+
+        .job-post {
+
+            background: white;
+
+            padding: 20px;
+
+            margin: 20px 0;
+
+            border-radius: 8px;
+
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+            border-left: 5px solid #3498db;
+
+        }
+
+
+
+        .match-item {
+
+            background: #f8f9fa;
+
+            padding: 15px;
+
+            margin: 10px 0;
+
+            border-radius: 5px;
+
+            border-left: 5px solid #28a745;
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+        }
+
+
+
+.ai-analysis {
+
+            background: #e3f2fd;
+
+            padding: 10px;
+
+            margin: 10px 0;
+
+            border-radius: 5px;
+
+            border-left: 5px solid #2196f3;
+
+            font-size: 14px;
+
+            color: #1565c0;
+
+        }
+
+
+
+        .ai-analysis h5 {
+
+            margin: 0 0 5px 0;
+
+            color: #0d47a1;
+
+        }
+
+
+
+        .ai-analysis p {
+
+            margin: 0;
+
+            line-height: 1.4;
+
+        }
+
+        .candidate-info {
+
+            flex: 1;
+
+        }
+
+
+
+        .candidate-info h4 {
+
+            margin: 0 0 5px 0;
+
+            color: #2c3e50;
+
+        }
+
+
+
+        .candidate-info p {
+
+            margin: 5px 0;
+
+            font-size: 14px;
+
+        }
+
+
+
+        .match-percentage {
+
+            font-size: 24px;
+
+            font-weight: bold;
+
+            color: #28a745;
+
+            margin-left: 20px;
+
+        }
+
+
+
+        .high-match {
+
+            border-left: 5px solid #28a745;
+
+        }
+
+
+
+        .medium-match {
+
+            border-left: 5px solid #ffc107;
+
+        }
+
+
+
+        .low-match {
+
+            border-left: 5px solid #dc3545;
+
+        }
+
+
+
+        .candidate-actions {
+
+            margin-top: 10px;
+
+            display: flex;
+
+            gap: 10px;
+
+        }
+
+
+
+        .view-details-btn, .view-resume-btn, .feedback-btn {
+
+            background: #007bff;
+
+            color: white;
+
+            text-decoration: none;
+
+            padding: 8px 15px;
+
+            border-radius: 4px;
+
+            font-size: 12px;
+
+            border: none;
+
+            cursor: pointer;
+
+            transition: background 0.3s ease;
+
+        }
+
+
+
+        .view-details-btn:hover, .view-resume-btn:hover, .feedback-btn:hover {
+
+            background: #0056b3;
+
+        }
+
+
+
+        .feedback-btn {
+
+            background: #6c757d;
+
+        }
+
+
+
+        .feedback-btn:hover {
+
+            background: #545b62;
+
+        }
+
+
+
+        .feedback-form {
+
+            background: #e9ecef;
+
+            padding: 20px;
+
+            margin: 10px 0;
+
+            border-radius: 5px;
+
+            border: 2px dashed #6c757d;
+
+        }
+
+
+
+        .feedback-header {
+
+            margin-bottom: 15px;
+
+        }
+
+
+
+        .feedback-header h4 {
+
+            margin: 0 0 10px 0;
+
+            color: #495057;
+
+        }
+
+
+
+        .feedback-header p {
+
+            margin: 5px 0;
+
+            font-size: 14px;
+
+        }
+
+
+
+        .form-group {
+
+            margin-bottom: 15px;
+
+        }
+
+
+
+        .form-group label {
+
+            display: block;
+
+            margin-bottom: 5px;
+
+            font-weight: bold;
+
+        }
+
+
+
+        .form-group textarea {
+
+            width: 100%;
+
+            padding: 10px;
+
+            border: 1px solid #ddd;
+
+            border-radius: 4px;
+
+            font-size: 14px;
+
+            box-sizing: border-box;
+
+            min-height: 120px;
+
+            resize: vertical;
+
+        }
+
+
+
+        .feedback-actions {
+
+            display: flex;
+
+            gap: 10px;
+
+            margin-top: 20px;
+
+        }
+
+
+
+        .submit-feedback-btn {
+
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+
+            color: white;
+
+            border: none;
+
+            padding: 10px 20px;
+
+            border-radius: 5px;
+
+            cursor: pointer;
+
+            font-size: 14px;
+
+            transition: all 0.3s ease;
+
+        }
+
+
+
+        .submit-feedback-btn:hover {
+
+            transform: translateY(-1px);
+
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+
+        }
+
+
+
+        .cancel-feedback-btn {
+
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+
+            color: white;
+
+            border: none;
+
+            padding: 10px 20px;
+
+            border-radius: 5px;
+
+            cursor: pointer;
+
+            font-size: 14px;
+
+            transition: all 0.3s ease;
+
+        }
+
+
+
+        .cancel-feedback-btn:hover {
+
+            transform: translateY(-1px);
+
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+
+        }
+
+
+
+        .no-matches {
+
+            text-align: center;
+
+            color: #666;
+
+            padding: 20px;
+
+            background: #f8f9fa;
+
+            border-radius: 5px;
+
+        }
+
+
+
+        .summary {
+
+            margin-top: 20px;
+
+            padding: 15px;
+
+            background: #e9ecef;
+
+            border-radius: 5px;
+
+        }
+
+
+
+        .btn {
+
+            background: #007bff;
+
+            color: white;
+
+            padding: 10px 20px;
+
+            border: none;
+
+            border-radius: 4px;
+
+            cursor: pointer;
+
+            font-size: 16px;
+
+        }
+
+
+
+        .btn:hover {
+
+            background: #0056b3;
+
+        }
+
+
+
+        .job-form {
+
+            background: white;
+
+            padding: 20px;
+
+            margin: 20px 0;
+
+            border-radius: 8px;
+
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+        }
+
+
+
+        .job-form input, .job-form textarea {
+
+            width: 100%;
+
+            padding: 10px;
+
+            margin: 5px 0 15px 0;
+
+            border: 1px solid #ddd;
+
+            border-radius: 4px;
+
+            box-sizing: border-box;
+
+        }
+
+
+
+        .job-form textarea {
+
+            min-height: 120px;
+
+            resize: vertical;
+
+        }
+
+
+
+        .job-form label {
+
+            font-weight: bold;
+
+            margin-bottom: 5px;
+
+            display: block;
+
+        }
+
+
+
+        .job-form small {
+
+            color: #666;
+
+            font-size: 12px;
+
+        }
+
+    </style>
+
+</head>
+
+
+
+<body>
+
+    <h1>📋 All Job Posts</h1>
+
+    <a href="{{ url_for('admin_dashboard') }}">⬅ Back</a>
+
+    <hr>
+
+
+
+    <!-- JOB POST FORM -->
+
+    <div class="job-form">
+
+        <h2>🔍 Post New Job</h2>
+
+        <form method="POST">
+
+            <div class="form-group">
+
+                <label>Job Title:</label>
+
+                <input type="text" name="title" placeholder="e.g. Software Developer, Data Analyst" required>
+
+            </div>
+
+
+
+            <div class="form-group">
+
+                <label>Job Description & Requirements:</label>
+
+                <textarea name="description" rows="6"
+
+                    placeholder="Enter job description, skills required, qualifications, etc..." required></textarea>
+
+                <small>💡 Tip: Include specific skills like Python, Java, Agile, BSc, MSc, etc. for better
+
+                    matching</small>
+
+            </div>
+
+
+
+            <button type="submit" class="btn">🚀 Post Job & Find Matches</button>
+
+        </form>
+
+    </div>
+
+
+
+    <hr>
+
+
+
+    <!-- JOBS + MATCHING CANDIDATES -->
+
+    {% for item in jobs_with_matches %}
+
+    <div class="job-post">
+
+        <h2>📋 {{ item.job[1] }}</h2>
+
+        <p><strong>Description:</strong> {{ item.job[2] }}</p>
+
+
+
+        <h3>🎯 Matching Candidates</h3>
+
+
+
+        {% if item.matches %}
+
+        {% for m in item.matches %}
+
+        <div
+
+            class="match-item {% if m.match_percentage >= 70 %}high-match{% elif m.match_percentage >= 40 %}medium-match{% else %}low-match{% endif %}">
+
+            <div class="candidate-info">
+
+                <h4>{{ m.name }}</h4>
+
+                <p>📧 {{ m.email }}</p>
+
+                <p>🎯 Matched Skills: {{ m.matched_skills|join(', ') }}</p>
+
+                {% if m.ai_analysis %}
+                <div class="ai-analysis">
+                    <h5>Why not 100%?</h5>
+                    <p>{{ m.ai_analysis }}</p>
+                </div>
+                {% endif %}
+
+                {% if m.summary %}
+                <p>📝 Summary: {{ m.summary[:100] }}...</p>
+                {% endif %}
+
+                <div class="candidate-actions">
+                    {% if m.id %}
+                    <a href="{{ url_for('admin_candidate_detail', candidate_id=m.id) }}" class="view-details-btn">👤
+                        View Details</a>
+                    {% else %}
+                    <span class="view-details-btn" style="background: grey;">No ID</span>
+                    {% endif %}
+
+                    {% if m.file_path %}
+                    <a href="{{ url_for('serve_upload', filename=m.file_path.split('\\')[-1]) }}"
+                        class="view-resume-btn" target="_blank">📄 View Resume</a>
+                    {% endif %}
+
+                    <button class="feedback-btn" onclick="toggleFeedbackForm('{{ item.job[0] }}_{{ loop.index }}')">
+                        🤖 Feedback
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="match-percentage">{{ m.match_percentage }}%</div>
+
+        </div>
+
+        
+
+        <!-- 🤖 AI FEEDBACK FORM -->
+
+        <div class="feedback-form" id="feedbackForm_{{ item.job[0] }}_{{ loop.index }}" style="display: none;">
+
+            <div class="feedback-header">
+
+                <h4>🤖 AI Result Feedback</h4>
+
+                <p><strong>Candidate:</strong> {{ m.name }} | <strong>Match:</strong> {{ m.match_percentage }}%</p>
+
+                <p><strong>Job Title:</strong> {{ item.job[1] }}</p>
+
+            </div>
+
+            <form method="POST" action="{{ url_for('admin_feedback') }}">
+
+                <input type="hidden" name="job_id" value="{{ item.job[0] }}">
+
+                <input type="hidden" name="resume_id" value="{{ m.id or 0 }}">
+
+                <input type="hidden" name="match_percentage" value="{{ m.match_percentage }}">
+
+
+
+                <div class="form-group">
+
+                    <label>💡 How should AI improve?</label>
+
+                    <textarea name="correction_suggestion" rows="3"
+
+                        placeholder="Suggest how AI should handle similar cases... (e.g., 'Consider Python frameworks as Python skills', 'Give higher weight to relevant experience', 'Look for transferable skills')" required></textarea>
+
+                </div>
+
+
+
+                <div class="feedback-actions">
+
+                    <button type="submit" class="submit-feedback-btn">🚀 Submit Feedback</button>
+
+                    <button type="button" class="cancel-feedback-btn" onclick="toggleFeedbackForm('{{ item.job[0] }}_{{ loop.index }}')">
+
+                        ❌ Cancel
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+        {% endfor %}
+
+
+
+        <div class="summary">
+
+            <p><strong>Total Matches:</strong> {{ item.matches|length }} candidates found</p>
+
+        </div>
+
+        {% else %}
+
+        <div class="no-matches">
+
+            <h3>❌ No Matching Candidates Found</h3>
+
+            <p>Try adjusting the job description with different skills or requirements</p>
+
+            <p><strong>Note:</strong> Only candidates with more than 0% match are shown.</p>
+
+        </div>
+
+        {% endif %}
+
+
+
+        <hr>
+
+    </div>
+
+    {% endfor %}
+
+
+
+    <!-- 🤖 FEEDBACK FORM TOGGLE SCRIPT -->
+
+    <script>
+
+        function toggleFeedbackForm(uniqueId) {
+
+            const form = document.getElementById('feedbackForm_' + uniqueId);
+
+            if (form.style.display === 'none') {
+
+                form.style.display = 'block';
+
+                // Scroll to form
+
+                form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            } else {
+
+                form.style.display = 'none';
+
+            }
+
+        }
+
+    </script>
+
+
+
+</body>
+
+
+
+</html>
+

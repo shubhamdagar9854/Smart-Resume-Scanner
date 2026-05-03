@@ -102,13 +102,17 @@ Return ONLY the 5 bullet points, nothing else.</pre>
 
                     <div class="resume-summary">
                         <h4>📝 Summary:</h4>
-                        {% if resume[6] and 'Generating' not in resume[6] and 'failed' not in resume[6].lower() %}
+                        {% if resume[6] and resume[6].strip() and 'Generating' not in resume[6] and 'Error' not in resume[6] and 'error' not in resume[6].lower() and 'AI Summary Error' not in resume[6] and 'not ready' not in resume[6].lower() %}
                             <div class="summary-content">
                                 <pre style="white-space: pre-line; font-family: inherit; margin: 0;">{{ resume[6] }}</pre>
                             </div>
                         {% else %}
                             <div class="no-summary-section">
-                                <p>Summary not ready. Please refresh the page.</p>
+                                {% if resume[6] and ('Error' in resume[6] or 'error' in resume[6].lower() or 'AI Summary Error' in resume[6]) %}
+                                    <p style="color: #dc3545;">❌ {{ resume[6] }}</p>
+                                {% else %}
+                                    <p>📝 Summary not ready. Please refresh the page.</p>
+                                {% endif %}
                             </div>
                         {% endif %}
                     </div>

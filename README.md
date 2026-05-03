@@ -55,8 +55,10 @@ python app.py
 1. **🔑 Get Google Gemini API Key** from [Google AI Studio](https://aistudio.google.com/)
 2. **📝 Create `.env` file** with your API key:
    ```bash
-   GOOGLE_API_KEY=your-gemini-api-key-here
+   GEMINI_API_KEY=your-gemini-api-key-here
    ```
+   ⚠️ **IMPORTANT**: Never commit `.env` file to GitHub or share your API key!
+3. **🔒 Security**: The `.env` file is already in `.gitignore` to protect your API key
 
 ### 🎯 How to Use
 

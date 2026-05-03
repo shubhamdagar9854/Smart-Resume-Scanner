@@ -18,13 +18,66 @@ else:
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp')
     DB_NAME = os.environ.get('DATABASE_PATH', 'resumes.db')
 
-from rag_summary import (
-    extract_text_from_resume,
-    calculate_match_percentage_full_ai_rag,
-    generate_professional_summary_rag,
-    normalize_resume_json,
-    get_ai_match_analysis,
-)
+# Try to import AI functions, fallback to basic functions if AI modules fail
+try:
+    from rag_summary import (
+        extract_text_from_resume,
+        calculate_match_percentage_full_ai_rag,
+        generate_professional_summary_rag,
+        normalize_resume_json,
+        get_ai_match_analysis,
+    )
+    AI_AVAILABLE = True
+except ImportError as e:
+    AI_AVAILABLE = False
+    
+    # Fallback functions
+    def extract_text_from_resume(file_path):
+        """Basic text extraction without AI"""
+        try:
+            import pdfplumber
+            import docx
+            
+            if file_path.endswith('.pdf'):
+                with pdfplumber.open(file_path) as pdf:
+                    text = ""
+                    for page in pdf.pages:
+                        text += page.extract_text() or ""
+                    return text
+            elif file_path.endswith('.docx'):
+                doc = docx.Document(file_path)
+                return "\n".join([para.text for para in doc.paragraphs])
+        except Exception as e:
+            print(f"Error extracting text: {e}")
+        return ""
+    
+    def calculate_match_percentage_full_ai_rag(resume_text, job_description):
+        """Basic keyword matching without AI"""
+        resume_text = resume_text.lower()
+        job_desc = job_description.lower()
+        
+        # Extract basic skills from job description
+        job_skills = ['python', 'java', 'javascript', 'html', 'css', 'sql', 'react', 'node']
+        found_skills = [skill for skill in job_skills if skill in job_desc]
+        
+        # Count matches in resume
+        matches = sum(1 for skill in found_skills if skill in resume_text)
+        
+        if len(found_skills) > 0:
+            return (matches / len(found_skills)) * 100
+        return 0.0
+    
+    def generate_professional_summary_rag(resume_text):
+        """Fallback summary without AI"""
+        return "AI Summary Error: AI modules not available. Please configure Google Gemini API key for unique AI-generated summaries."
+    
+    def normalize_resume_json(resume_text):
+        """Basic normalization without AI"""
+        return {"skills": [], "experience": "", "education": ""}
+    
+    def get_ai_match_analysis(resume_text, job_description, match_percentage):
+        """Basic analysis without AI"""
+        return f"Basic keyword matching shows {match_percentage:.1f}% compatibility"
 
 from database import (
     add_job_post,
@@ -73,6 +126,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+
 # =========================
 # ROUTES
 # =========================
@@ -108,27 +162,22 @@ def home_post():
 
             # Extract text and generate summary
             resume_text = extract_text_from_resume(file_path)
-            print(f"DEBUG: Extracted resume text length: {len(resume_text)}")
-            print(f"DEBUG FULL TEXT: {resume_text}") # <-- Isse terminal mein dikhega ki actually read kya
             
             if resume_text:
                 try:
-                    print("DEBUG: Generating enhanced summary...")
                     summary = generate_professional_summary_rag(resume_text)
-                    print(f"DEBUG: Generated summary:\n{summary}")
+                    
+                    # Check if summary contains error message
+                    if summary and ("Error" in summary or "error" in summary.lower() or "API key" in summary):
+                        summary = f"AI Summary Error: Please configure valid Google Gemini API key in .env file"
+                    
                 except Exception as e:
-                    print(f"DEBUG: Summary generation failed: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    summary = "• Technology professional with comprehensive software development expertise."
+                    summary = f"AI Summary Error: Unable to generate summary - {str(e)}"
             else:
-                print("DEBUG: No resume text extracted")
-                summary = "• Could not extract text from resume. Please check file format."
+                summary = "Summary Error: Could not extract text from resume. Please check file format."
 
             # Add to database
-            print(f"FINAL SUMMARY BEING SAVED:\n{summary}")
             add_resume(name, email, phone, "", file_path, summary)
-            print("DEBUG: Resume saved to database successfully")
 
             flash("Resume submitted successfully!")
             return redirect(url_for("home"))

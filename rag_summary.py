@@ -6,8 +6,9 @@ import PyPDF2
 import google.generativeai as genai
 import warnings
 
-# Suppress deprecation warning temporarily
-warnings.filterwarnings("ignore", category=FutureWarning)
+# Suppress all warnings for cleaner output
+warnings.filterwarnings("ignore")
+warnings.simplefilter("ignore")
 from dotenv import load_dotenv
 from database import get_enhanced_prompt, add_enhanced_prompt, get_ai_feedback_by_type
 
@@ -26,8 +27,6 @@ MODEL_NAME = 'models/gemini-2.5-flash'
 
 # 1. Model Load karne ka function
 def load_mistral_model():
-    print("✅ Gemini API ready!")
-    print("🌐 Using Google Gemini 2.0 Flash (Free tier)")
     return True
 
 # 2. RAG-Enhanced AI Summary banane ka function
@@ -90,7 +89,6 @@ def generate_professional_summary_rag(resume_text: str) -> str:
             if '503' in error_msg or 'UNAVAILABLE' in error_msg:
                 if attempt < max_retries - 1:
                     wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
-                    print(f"Model busy, retrying in {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
             

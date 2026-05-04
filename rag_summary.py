@@ -17,7 +17,7 @@ load_dotenv('.env.local')
 load_dotenv()
 
 # Gemini API key
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-api-key-here')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDEhwbpB4a_5_1FJKCoNMUsJ-D5zFlvd04')
 
 # Gemini client initialize (new syntax)
 genai.configure(api_key=GEMINI_API_KEY)
@@ -96,8 +96,12 @@ def generate_professional_summary_rag(resume_text: str) -> str:
             if '429' in error_msg or 'RESOURCE_EXHAUSTED' in error_msg:
                 return generate_fallback_summary(resume_text)
             
-            # For other errors, return error message
-            return f"Error generating summary: {error_msg}"
+            # For API key errors, use fallback summary
+            if ('403' in error_msg or 'leaked' in error_msg or 'not found' in error_msg):
+                return generate_fallback_summary(resume_text)
+            
+            # For other errors, return clean error message
+            return "AI Summary Error: Service temporarily unavailable"
     
     # If all retries failed, use fallback
     return generate_fallback_summary(resume_text)

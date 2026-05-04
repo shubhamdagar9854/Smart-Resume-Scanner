@@ -11,6 +11,8 @@ pytest
 pytest-flask
 python-dotenv
 google-generativeai
+google-genai
+openai
 pytesseract
 pdf2image
 Pillow

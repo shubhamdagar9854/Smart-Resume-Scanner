@@ -133,7 +133,10 @@ def allowed_file(filename):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    # Get summary from session if available
+    summary = session.pop('last_summary', None)
+    name = session.pop('last_name', None)
+    return render_template("index.html", summary=summary, name=name)
 
 @app.route("/", methods=["POST"])
 def home_post():
@@ -167,9 +170,9 @@ def home_post():
                 try:
                     summary = generate_professional_summary_rag(resume_text)
                     
-                    # Check if summary contains error message
-                    if summary and ("Error" in summary or "error" in summary.lower() or "API key" in summary):
-                        summary = f"AI Summary Error: Please configure valid Google Gemini API key in .env file"
+                    # Check if summary is actually an error (contains specific error patterns)
+                    if summary and ("Error generating summary:" in summary or "AI quota exceeded" in summary or "AI API Key Error:" in summary or "AI Error:" in summary):
+                        summary = f"AI Summary Error: {summary}"
                     
                 except Exception as e:
                     summary = f"AI Summary Error: Unable to generate summary - {str(e)}"
@@ -178,6 +181,10 @@ def home_post():
 
             # Add to database
             add_resume(name, email, phone, "", file_path, summary)
+
+            # Store summary in session to display after upload
+            session['last_summary'] = summary
+            session['last_name'] = name
 
             flash("Resume submitted successfully!")
             return redirect(url_for("home"))
@@ -253,9 +260,6 @@ def admin_dashboard():
     
     resumes = get_all_resumes()
     
-    print(f"DEBUG: Total resumes found: {len(resumes)}")
-    
-    # Pagination logic
     total = len(resumes)
     start = (page - 1) * per_page
     end = start + per_page
@@ -422,7 +426,7 @@ def admin_jobs():
                         "suggestions": "AI-powered matching analysis",
                         "matched_skills": matched_skills_for_ui,
                         "missing_skills": [],
-                        "summary": r[6] if len(r) > 6 else "",
+                        "summary": generate_professional_summary_rag(resume_text),
                         "ai_analysis": ai_analysis  # 🔥 NEW: AI analysis for why not 100%
                     })
 

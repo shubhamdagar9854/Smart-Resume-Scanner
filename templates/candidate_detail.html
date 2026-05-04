@@ -135,7 +135,7 @@
                 <strong>📱 WhatsApp:</strong>
                 <span>{{ candidate[3] }}</span>
                 <a href="https://wa.me/{{ candidate[3].replace('+', '').replace(' ', '').replace('-', '') }}" 
-                   class="btn btn-success" target="_blank">
+                   class="btn btn-success" target="_blank" rel="noopener noreferrer">
                     💬 Message on WhatsApp
                 </a>
             </div>
@@ -153,13 +153,13 @@
             </a>
             {% if candidate[3] %}
             <a href="https://wa.me/{{ candidate[3].replace('+', '').replace(' ', '').replace('-', '') }}" 
-               class="btn btn-success" target="_blank">
+               class="btn btn-success" target="_blank" rel="noopener noreferrer">
                 💬 WhatsApp Chat
             </a>
             {% endif %}
             {% if candidate[5] %}
             <a href="{{ url_for('serve_upload', filename=candidate[5].split('\\')[-1]) }}" 
-               class="btn btn-primary" target="_blank">
+               class="btn btn-primary" target="_blank" rel="noopener noreferrer">
                 📄 View Resume (PDF/DOCX)
             </a>
             {% endif %}

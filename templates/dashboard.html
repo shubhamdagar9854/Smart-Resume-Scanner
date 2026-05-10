@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Task Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>📊 Welcome, {{ session.full_name }}!</h1>
+            <div class="header-actions">
+                <a href="{{ url_for('projects') }}" class="btn">📁 Projects</a>
+                <a href="{{ url_for('logout') }}" class="btn logout">Logout</a>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-grid">
+            <!-- Task Statistics -->
+            <div class="stats-card">
+                <h3>📈 Task Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-number">{{ total_tasks }}</span>
+                        <span class="stat-label">Total Tasks</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number completed">{{ completed_tasks }}</span>
+                        <span class="stat-label">Completed</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number pending">{{ pending_tasks }}</span>
+                        <span class="stat-label">Pending</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number in-progress">{{ in_progress_tasks }}</span>
+                        <span class="stat-label">In Progress</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overdue Tasks Alert -->
+            {% if overdue_tasks %}
+            <div class="alert-card">
+                <h3>⚠️ Overdue Tasks</h3>
+                <div class="overdue-list">
+                    {% for task in overdue_tasks %}
+                    <div class="overdue-item">
+                        <strong>{{ task[1] }}</strong>
+                        <span class="overdue-date">Due: {{ task[8] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Recent Projects -->
+            <div class="projects-card">
+                <h3>📁 Your Projects</h3>
+                {% if projects %}
+                <div class="project-list">
+                    {% for project in projects %}
+                    <div class="project-item">
+                        <h4>{{ project[1] }}</h4>
+                        <p>{{ project[2] or 'No description' }}</p>
+                        <div class="project-actions">
+                            <a href="{{ url_for('tasks', project_id=project[0]) }}" class="btn-small">View Tasks</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No projects yet. <a href="{{ url_for('projects') }}">Create your first project</a></p>
+                {% endif %}
+            </div>
+
+            <!-- Recent Tasks -->
+            <div class="tasks-card">
+                <h3>📋 Recent Tasks</h3>
+                {% if tasks %}
+                <div class="task-list">
+                    {% for task in tasks[:5] %}
+                    <div class="task-item {{ task[7] }}">
+                        <div class="task-header">
+                            <h4>{{ task[1] }}</h4>
+                            <span class="task-status">{{ task[7] }}</span>
+                        </div>
+                        <p>{{ task[2] or 'No description' }}</p>
+                        {% if task[8] %}
+                        <div class="task-due">Due: {{ task[8] }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No tasks assigned yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .stats-card, .alert-card, .projects-card, .tasks-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-number {
+            display: block;
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .overdue-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .overdue-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #fff3cd;
+            border-left: 4px solid #856404;
+            border-radius: 4px;
+        }
+        
+        .overdue-date {
+            color: #856404;
+            font-weight: bold;
+            float: right;
+        }
+        
+        .project-list, .task-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .project-item, .task-item {
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+        
+        .task-item.pending {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .task-item.in-progress {
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .task-item.completed {
+            border-left: 4px solid #28a745;
+            background: #d4edda;
+        }
+        
+        .task-status {
+            float: right;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .task-item.pending .task-status {
+            background: #ffc107;
+            color: #856404;
+        }
+        
+        .task-item.in-progress .task-status {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .task-item.completed .task-status {
+            background: #28a745;
+            color: white;
+        }
+        
+        .task-due {
+            font-size: 12px;
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn.logout {
+            background: #dc3545;
+        }
+        
+        .btn.logout:hover {
+            background: #c82333;
+        }
+        
+        .btn-small {
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+    </style>
+</body>
+</html>

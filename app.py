@@ -18,66 +18,75 @@ else:
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp')
     DB_NAME = os.environ.get('DATABASE_PATH', 'resumes.db')
 
-# Try to import AI functions, fallback to basic functions if AI modules fail
-try:
-    from rag_summary import (
-        extract_text_from_resume,
-        calculate_match_percentage_full_ai_rag,
-        generate_professional_summary_rag,
-        normalize_resume_json,
-        get_ai_match_analysis,
-    )
-    AI_AVAILABLE = True
-except ImportError as e:
-    AI_AVAILABLE = False
-    
-    # Fallback functions
-    def extract_text_from_resume(file_path):
-        """Basic text extraction without AI"""
-        try:
-            import pdfplumber
-            import docx
-            
-            if file_path.endswith('.pdf'):
-                with pdfplumber.open(file_path) as pdf:
-                    text = ""
-                    for page in pdf.pages:
-                        text += page.extract_text() or ""
-                    return text
-            elif file_path.endswith('.docx'):
-                doc = docx.Document(file_path)
-                return "\n".join([para.text for para in doc.paragraphs])
-        except Exception as e:
-            print(f"Error extracting text: {e}")
-        return ""
-    
-    def calculate_match_percentage_full_ai_rag(resume_text, job_description):
-        """Basic keyword matching without AI"""
-        resume_text = resume_text.lower()
-        job_desc = job_description.lower()
+# Simple functions without AI for now
+AI_AVAILABLE = False
+
+def extract_text_from_resume(file_path):
+    """Basic text extraction without AI"""
+    try:
+        import pdfplumber
+        import docx
         
-        # Extract basic skills from job description
-        job_skills = ['python', 'java', 'javascript', 'html', 'css', 'sql', 'react', 'node']
-        found_skills = [skill for skill in job_skills if skill in job_desc]
-        
-        # Count matches in resume
-        matches = sum(1 for skill in found_skills if skill in resume_text)
-        
-        if len(found_skills) > 0:
-            return (matches / len(found_skills)) * 100
-        return 0.0
+        if file_path.endswith('.pdf'):
+            with pdfplumber.open(file_path) as pdf:
+                text = ""
+                for page in pdf.pages:
+                    text += page.extract_text() or ""
+                return text
+        elif file_path.endswith('.docx'):
+            doc = docx.Document(file_path)
+            return "\n".join([para.text for para in doc.paragraphs])
+    except Exception as e:
+        print(f"Error extracting text: {e}")
+    return ""
+
+def calculate_match_percentage_full_ai_rag(resume_text, job_description):
+    """Basic keyword matching without AI"""
+    resume_text = resume_text.lower()
+    job_desc = job_description.lower()
     
-    def generate_professional_summary_rag(resume_text):
-        """Fallback summary without AI"""
-        return "AI Summary Error: AI modules not available. Please configure Google Gemini API key for unique AI-generated summaries."
+    # Extract basic skills from job description
+    job_skills = ['python', 'java', 'javascript', 'html', 'css', 'sql', 'react', 'node']
+    found_skills = [skill for skill in job_skills if skill in job_desc]
     
-    def normalize_resume_json(resume_text):
-        """Basic normalization without AI"""
-        return {"skills": [], "experience": "", "education": ""}
+    # Count matches in resume
+    matches = sum(1 for skill in found_skills if skill in resume_text)
     
-    def get_ai_match_analysis(resume_text, job_description, match_percentage):
-        """Basic analysis without AI"""
-        return f"Basic keyword matching shows {match_percentage:.1f}% compatibility"
+    if len(found_skills) > 0:
+        return (matches / len(found_skills)) * 100
+    return 0.0
+
+def generate_professional_summary_rag(resume_text):
+    """Simple summary without AI"""
+    # Extract basic info from resume
+    lines = resume_text.split('\n')
+    skills = []
+    experience = []
+    
+    for line in lines:
+        line_lower = line.lower()
+        if any(tech in line_lower for tech in ['python', 'java', 'javascript', 'sql', 'react', 'node']):
+            if len(line.strip()) < 100:
+                skills.append(line.strip())
+        if any(word in line_lower for word in ['lead', 'senior', 'consultant', 'engineer', 'developer']):
+            if len(line.strip()) < 100:
+                experience.append(line.strip())
+    
+    summary = "* " + " ".join(skills[:3]) if skills else "* Experienced professional with diverse technical skills"
+    summary += "\n* " + (experience[0] if experience else "Software professional with proven track record")
+    summary += "\n* Strong problem-solving and analytical capabilities"
+    summary += "\n* Proficient in modern development tools and methodologies"
+    summary += "\n* Excellent collaboration and communication skills"
+    
+    return summary
+
+def normalize_resume_json(resume_text):
+    """Basic normalization without AI"""
+    return {"skills": [], "experience": "", "education": ""}
+
+def get_ai_match_analysis(resume_text, job_description, match_percentage):
+    """Basic analysis without AI"""
+    return f"Basic keyword matching shows {match_percentage:.1f}% compatibility"
 
 from database import (
     add_job_post,
@@ -96,11 +105,26 @@ from database import (
     add_enhanced_prompt,
     get_enhanced_prompt,
     get_all_ai_feedback,
-    # HR User Functions
-    add_hr_user,
-    get_hr_user_by_username,
-    get_all_hr_users,
-    update_hr_user_profile,
+    # User Authentication Functions
+    add_user,
+    get_user_by_username,
+    get_user_by_email,
+    verify_user_login,
+    # Project Management Functions
+    add_project,
+    get_projects_by_user,
+    get_all_projects,
+    # Team Management Functions
+    add_team,
+    add_team_member,
+    get_teams_by_project,
+    get_team_members,
+    # Task Management Functions
+    add_task,
+    update_task_status,
+    get_tasks_by_project,
+    get_tasks_by_user,
+    get_overdue_tasks,
 )
 
 app = Flask(__name__)
@@ -540,11 +564,227 @@ def admin_feedback_history():
         feedback_list = get_all_ai_feedback()
         return render_template("feedback_history.html", feedback_list=feedback_list)
     except Exception as e:
-        flash(f"❌ Error loading feedback: {str(e)}", "error")
+        flash(f" Error loading feedback: {str(e)}", "error")
         return redirect(url_for("admin_dashboard"))
 
 
 # =========================
+# USER AUTHENTICATION
+# =========================
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        username = request.form.get("username")
+        email = request.form.get("email")
+        password = request.form.get("password")
+        full_name = request.form.get("full_name", "")
+        
+        # Validation
+        if not username or not email or not password:
+            flash("All fields are required!")
+            return redirect(url_for("signup"))
+        
+        # Check if user already exists
+        if get_user_by_username(username):
+            flash("Username already exists!")
+            return redirect(url_for("signup"))
+        
+        if get_user_by_email(email):
+            flash("Email already registered!")
+            return redirect(url_for("signup"))
+        
+        # Hash password and create user
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        try:
+            add_user(username, email, password_hash, full_name)
+            flash("Account created successfully! Please login.", "success")
+            return redirect(url_for("login"))
+        except Exception as e:
+            flash(f"Error creating account: {str(e)}")
+            return redirect(url_for("signup"))
+    
+    return render_template("signup.html")
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        
+        if not username or not password:
+            flash("Username and password are required!")
+            return redirect(url_for("login"))
+        
+        user = verify_user_login(username, password)
+        if user:
+            session["user_logged_in"] = True
+            session["user_id"] = user[0]
+            session["username"] = user[1]
+            session["full_name"] = user[4] or user[1]
+            session["role"] = user[5] or "user"
+            flash(f"Welcome back, {user[4] or user[1]}!", "success")
+            return redirect(url_for("dashboard"))
+        else:
+            flash("Invalid username or password!")
+            return redirect(url_for("login"))
+    
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged out successfully!", "success")
+    return redirect(url_for("login"))
+
+# =========================
+# USER DASHBOARD
+# =========================
+
+@app.route("/dashboard")
+def dashboard():
+    if not session.get("user_logged_in"):
+        return redirect(url_for("login"))
+    
+    user_id = session["user_id"]
+    
+    # Get user's projects
+    projects = get_projects_by_user(user_id)
+    
+    # Get user's tasks
+    tasks = get_tasks_by_user(user_id)
+    
+    # Get overdue tasks
+    overdue_tasks = get_overdue_tasks()
+    
+    # Task statistics
+    total_tasks = len(tasks)
+    completed_tasks = len([t for t in tasks if t[7] == "completed"])  # status at index 7
+    pending_tasks = len([t for t in tasks if t[7] == "pending"])
+    in_progress_tasks = len([t for t in tasks if t[7] == "in_progress"])
+    
+    return render_template("dashboard.html", 
+                     projects=projects,
+                     tasks=tasks,
+                     overdue_tasks=overdue_tasks,
+                     total_tasks=total_tasks,
+                     completed_tasks=completed_tasks,
+                     pending_tasks=pending_tasks,
+                     in_progress_tasks=in_progress_tasks)
+
+# =========================
+# PROJECT MANAGEMENT
+# =========================
+
+@app.route("/projects", methods=["GET", "POST"])
+def projects():
+    if not session.get("user_logged_in"):
+        return redirect(url_for("login"))
+    
+    if request.method == "POST":
+        name = request.form.get("name")
+        description = request.form.get("description")
+        
+        if not name:
+            flash("Project name is required!")
+            return redirect(url_for("projects"))
+        
+        try:
+            add_project(name, description, session["user_id"])
+            flash("Project created successfully!", "success")
+            return redirect(url_for("projects"))
+        except Exception as e:
+            flash(f"Error creating project: {str(e)}")
+            return redirect(url_for("projects"))
+    
+    projects = get_projects_by_user(session["user_id"])
+    return render_template("projects.html", projects=projects)
+
+# =========================
+# TASK MANAGEMENT
+# =========================
+
+@app.route("/tasks/<int:project_id>", methods=["GET", "POST"])
+def tasks(project_id):
+    if not session.get("user_logged_in"):
+        return redirect(url_for("login"))
+    
+    if request.method == "POST":
+        title = request.form.get("title")
+        description = request.form.get("description")
+        assigned_to = request.form.get("assigned_to", type=int)
+        priority = request.form.get("priority", "medium")
+        due_date = request.form.get("due_date")
+        
+        if not title:
+            flash("Task title is required!")
+            return redirect(url_for("tasks", project_id=project_id))
+        
+        try:
+            add_task(title, description, project_id, assigned_to, session["user_id"], priority, due_date)
+            flash("Task created successfully!", "success")
+            return redirect(url_for("tasks", project_id=project_id))
+        except Exception as e:
+            flash(f"Error creating task: {str(e)}")
+            return redirect(url_for("tasks", project_id=project_id))
+    
+    tasks = get_tasks_by_project(project_id)
+    return render_template("tasks.html", tasks=tasks, project_id=project_id)
+
+@app.route("/task/<int:task_id>/update", methods=["POST"])
+def update_task(task_id):
+    if not session.get("user_logged_in"):
+        return redirect(url_for("login"))
+    
+    status = request.form.get("status")
+    if status in ["pending", "in_progress", "completed"]:
+        try:
+            update_task_status(task_id, status)
+            flash("Task status updated!", "success")
+        except Exception as e:
+            flash(f"Error updating task: {str(e)}")
+    
+    return redirect(request.referrer or url_for("dashboard"))
+
+# =========================
+# API ENDPOINTS
+# =========================
+
+@app.route("/api/projects", methods=["GET"])
+def api_projects():
+    if not session.get("user_logged_in"):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    projects = get_projects_by_user(session["user_id"])
+    return jsonify({"projects": projects})
+
+@app.route("/api/tasks/<int:project_id>", methods=["GET"])
+def api_tasks(project_id):
+    if not session.get("user_logged_in"):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    tasks = get_tasks_by_project(project_id)
+    return jsonify({"tasks": tasks})
+
+@app.route("/api/task/<int:task_id>", methods=["PUT"])
+def api_update_task(task_id):
+    if not session.get("user_logged_in"):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json()
+    status = data.get("status")
+    
+    if status not in ["pending", "in_progress", "completed"]:
+        return jsonify({"error": "Invalid status"}), 400
+    
+    try:
+        update_task_status(task_id, status)
+        return jsonify({"success": True, "message": "Task updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     import os
     port = int(os.environ.get('PORT', 5000))

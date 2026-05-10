@@ -13,6 +13,78 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     
+    # Users Table for Authentication
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            full_name TEXT,
+            role TEXT DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active BOOLEAN DEFAULT 1
+        )
+    """)
+    
+    # Projects Table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            owner_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'active',
+            FOREIGN KEY (owner_id) REFERENCES users (id)
+        )
+    """)
+    
+    # Teams Table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS teams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            project_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects (id)
+        )
+    """)
+    
+    # Team Members Table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS team_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id INTEGER,
+            user_id INTEGER,
+            role TEXT DEFAULT 'member',
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (team_id) REFERENCES teams (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    
+    # Tasks Table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            project_id INTEGER,
+            assigned_to INTEGER,
+            created_by INTEGER,
+            status TEXT DEFAULT 'pending',
+            priority TEXT DEFAULT 'medium',
+            due_date TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects (id),
+            FOREIGN KEY (assigned_to) REFERENCES users (id),
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        )
+    """)
+    
     # Resumes Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS resumes (
@@ -448,52 +520,186 @@ def get_all_ai_feedback():
     conn.close()
     return feedback
 
-def add_hr_user(username, email, password, full_name, phone, department, position):
-    """Add HR user to database"""
+# --- USER AUTHENTICATION FUNCTIONS ---
+def add_user(username, email, password_hash, full_name=None, role='user'):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    try:
-        cur.execute("""
-            INSERT INTO hr_users (username, email, password, full_name, phone, department, position)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (username, email, password, full_name, phone, department, position))
-        new_id = cur.lastrowid
-        conn.commit()
-        return new_id
-    except Exception as e:
-        conn.close()
-        return f"Error adding HR user: {e}"
+    cur.execute("""
+        INSERT INTO users (username, email, password_hash, full_name, role)
+        VALUES (?, ?, ?, ?, ?)
+    """, (username, email, password_hash, full_name, role))
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
 
-def get_hr_user_by_username(username):
-    """Get HR user by username"""
+def get_user_by_username(username):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("SELECT * FROM hr_users WHERE username = ?", (username,))
+    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
     user = cur.fetchone()
     conn.close()
     return user
 
-def get_all_hr_users():
-    """Get all HR users"""
+def get_user_by_email(email):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("SELECT * FROM hr_users ORDER BY created_at DESC")
-    users = cur.fetchall()
+    cur.execute("SELECT * FROM users WHERE email = ?", (email,))
+    user = cur.fetchone()
     conn.close()
-    return users
+    return user
 
-def update_hr_user_profile(user_id, full_name, phone, department, position):
-    """Update HR user profile"""
+def verify_user_login(username, password):
+    import hashlib
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    try:
-        cur.execute("""
-            UPDATE hr_users 
-            SET full_name = ?, phone = ?, department = ?, position = ?
-            WHERE id = ?
-        """, (full_name, phone, department, position, user_id))
-        conn.commit()
-        return True
-    except Exception as e:
-        conn.close()
-        return f"Error updating HR user: {e}"
+    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cur.fetchone()
+    conn.close()
+    
+    if user:
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        if user[3] == password_hash:  # password_hash is at index 3
+            return user
+    return None
+
+# --- PROJECT MANAGEMENT FUNCTIONS ---
+def add_project(name, description, owner_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO projects (name, description, owner_id)
+        VALUES (?, ?, ?)
+    """, (name, description, owner_id))
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+def get_projects_by_user(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM projects WHERE owner_id = ? ORDER BY created_at DESC", (user_id,))
+    projects = cur.fetchall()
+    conn.close()
+    return projects
+
+def get_all_projects():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM projects ORDER BY created_at DESC")
+    projects = cur.fetchall()
+    conn.close()
+    return projects
+
+# --- TEAM MANAGEMENT FUNCTIONS ---
+def add_team(name, description, project_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO teams (name, description, project_id)
+        VALUES (?, ?, ?)
+    """, (name, description, project_id))
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+def add_team_member(team_id, user_id, role='member'):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO team_members (team_id, user_id, role)
+        VALUES (?, ?, ?)
+    """, (team_id, user_id, role))
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+def get_teams_by_project(project_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM teams WHERE project_id = ?", (project_id,))
+    teams = cur.fetchall()
+    conn.close()
+    return teams
+
+def get_team_members(team_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT tm.*, u.username, u.full_name, u.email 
+        FROM team_members tm
+        JOIN users u ON tm.user_id = u.id
+        WHERE tm.team_id = ?
+    """, (team_id,))
+    members = cur.fetchall()
+    conn.close()
+    return members
+
+# --- TASK MANAGEMENT FUNCTIONS ---
+def add_task(title, description, project_id, assigned_to, created_by, priority='medium', due_date=None):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO tasks (title, description, project_id, assigned_to, created_by, priority, due_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (title, description, project_id, assigned_to, created_by, priority, due_date))
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+def update_task_status(task_id, status):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    """, (status, task_id))
+    conn.commit()
+    conn.close()
+
+def get_tasks_by_project(project_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.*, u.username as assigned_username, u.full_name as assigned_name
+        FROM tasks t
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.project_id = ?
+        ORDER BY t.created_at DESC
+    """, (project_id,))
+    tasks = cur.fetchall()
+    conn.close()
+    return tasks
+
+def get_tasks_by_user(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.*, p.name as project_name
+        FROM tasks t
+        JOIN projects p ON t.project_id = p.id
+        WHERE t.assigned_to = ?
+        ORDER BY t.created_at DESC
+    """, (user_id,))
+    tasks = cur.fetchall()
+    conn.close()
+    return tasks
+
+def get_overdue_tasks():
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.*, u.username, p.name as project_name
+        FROM tasks t
+        JOIN users u ON t.assigned_to = u.id
+        JOIN projects p ON t.project_id = p.id
+        WHERE t.due_date < datetime('now') AND t.status != 'completed'
+        ORDER BY t.due_date ASC
+    """)
+    tasks = cur.fetchall()
+    conn.close()
+    return tasks

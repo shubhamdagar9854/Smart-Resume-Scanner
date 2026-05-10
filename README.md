@@ -38,6 +38,30 @@
 - ✅ **Loading States**: Loading indicators for better UX
 - ✅ **Empty/No Data States**: Proper handling of empty states
 
+### 🎯 How to Use
+
+#### 🌐 **Live Demo (Recommended)**
+- **Access**: https://smart-resume-scanner-mjh7.onrender.com/signup
+- **Features**: Complete task management system with resume scanner
+- **No Setup Required**: Just click and start using!
+
+#### 💻 **Local Development**
+1. **🌐 Open browser** and go to `http://localhost:5000`
+2. **📄 Upload resume** (PDF or DOCX format)
+3. **📊 View analysis** - AI will extract:
+   - 🧠 Skills and experience
+   - 🎓 Education details  
+   - 📝 Summary and recommendations
+4. **💼 Create job posting** to match candidates
+5. **📈 View matches** with compatibility scores
+
+#### 🚀 **Task Management Features**
+- **User Authentication**: Secure signup/login system
+- **Project Management**: Create and manage projects
+- **Task Tracking**: Assign tasks and track progress
+- **Team Collaboration**: Work together with team members
+- **Dashboard Analytics**: Track performance and statistics
+
 ---
 
 ## 📝 **Project Documentation**

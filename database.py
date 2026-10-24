@@ -1,7 +1,7 @@
 import sqlite3
 import os
 import json
-import psycopg2
+import psycopg
 from urllib.parse import urlparse
 
 # Database configuration - FIXED FOR DEPLOYMENT
@@ -12,7 +12,7 @@ def get_db_connection():
     """Get database connection - PostgreSQL in production, SQLite locally"""
     if DATABASE_URL:
         # Production: PostgreSQL (Render)
-        return psycopg2.connect(DATABASE_URL)
+        return psycopg.connect(DATABASE_URL)
     else:
         # Local: SQLite
         conn = sqlite3.connect(DB_NAME)

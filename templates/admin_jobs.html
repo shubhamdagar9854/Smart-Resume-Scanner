@@ -653,10 +653,10 @@
                         <strong>AI Match: {{ m.match_percentage }}%</strong> — Is this correct?
                     </div>
                     <div style="display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">
-                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'correct', {{ m.match_percentage }})" style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">✅ Sahi Hai</button>
-                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'high', {{ m.match_percentage }})" style="padding: 6px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📈 Zyada Hai</button>
-                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'low', {{ m.match_percentage }})" style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📉 Kam Hai</button>
-                        <input type="number" id="correctPct_{{ m.id }}" placeholder="Sahi %" min="0" max="100" style="width: 70px; padding: 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 13px;" title="Enter correct percentage (optional)">
+                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'correct', {{ m.match_percentage }})" style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">✅ Correct</button>
+                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'high', {{ m.match_percentage }})" style="padding: 6px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📈 Too High</button>
+                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'low', {{ m.match_percentage }})" style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📉 Too Low</button>
+                        <input type="number" id="correctPct_{{ m.id }}" placeholder="Correct %" min="0" max="100" style="width: 70px; padding: 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 13px;" title="Enter correct percentage (optional)">
                     </div>
                 </div>
 

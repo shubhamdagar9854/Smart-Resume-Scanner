@@ -1,102 +1,175 @@
 import sqlite3
 import os
 import json
+import psycopg2
+from urllib.parse import urlparse
 
 # Database configuration - FIXED FOR DEPLOYMENT
 DB_NAME = os.environ.get('DATABASE_PATH', 'resumes.db')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Use SQLite for now (MySQL setup later)
+def get_db_connection():
+    """Get database connection - PostgreSQL in production, SQLite locally"""
+    if DATABASE_URL:
+        # Production: PostgreSQL (Render)
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        # Local: SQLite
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 # --- INITIALIZE DATABASE ---
 def init_db():
     """Initialize database with all required tables"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
     
-    # Resumes Table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS resumes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            email TEXT,
-            phone TEXT,
-            photo TEXT,
-            file_path TEXT,
-            summary TEXT
-        )
-    """)
-    
-    # Job Posts Table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS job_posts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            requirements TEXT, 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # Admin Table
-    cur.execute("CREATE TABLE IF NOT EXISTS admin (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)")
-    cur.execute("SELECT * FROM admin")
-    if cur.fetchone() is None:
-        cur.execute("INSERT INTO admin (username, password) VALUES (?, ?)", ("admin", "admin123"))
-    
-    # AI Feedback Table for RAG System
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS ai_feedback (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_id INTEGER,
-            resume_id INTEGER,
-            match_percentage REAL,
-            admin_feedback TEXT,
-            error_description TEXT,
-            correction_suggestion TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (job_id) REFERENCES job_posts (id),
-            FOREIGN KEY (resume_id) REFERENCES resumes (id)
-        )
-    """)
-    
-    # Enhanced Prompts Table for RAG
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS enhanced_prompts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prompt_type TEXT,
-            original_prompt TEXT,
-            enhanced_prompt TEXT,
-            feedback_count INTEGER DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    if DATABASE_URL:
+        # PostgreSQL syntax
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS resumes (
+                id SERIAL PRIMARY KEY,
+                name TEXT,
+                email TEXT,
+                phone TEXT,
+                photo TEXT,
+                file_path TEXT,
+                summary TEXT
+            )
+        """)
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_posts (
+                id SERIAL PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                requirements TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cur.execute("CREATE TABLE IF NOT EXISTS admin (id SERIAL PRIMARY KEY, username TEXT, password TEXT)")
+        cur.execute("SELECT * FROM admin")
+        if cur.fetchone() is None:
+            cur.execute("INSERT INTO admin (username, password) VALUES (%s, %s)", ("admin", "admin123"))
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_feedback (
+                id SERIAL PRIMARY KEY,
+                job_id INTEGER,
+                resume_id INTEGER,
+                match_percentage REAL,
+                admin_feedback TEXT,
+                error_description TEXT,
+                correction_suggestion TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (job_id) REFERENCES job_posts (id),
+                FOREIGN KEY (resume_id) REFERENCES resumes (id)
+            )
+        """)
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS enhanced_prompts (
+                id SERIAL PRIMARY KEY,
+                prompt_type TEXT,
+                original_prompt TEXT,
+                enhanced_prompt TEXT,
+                feedback_count INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    else:
+        # SQLite syntax (original)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS resumes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                email TEXT,
+                phone TEXT,
+                photo TEXT,
+                file_path TEXT,
+                summary TEXT
+            )
+        """)
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                requirements TEXT, 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cur.execute("CREATE TABLE IF NOT EXISTS admin (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)")
+        cur.execute("SELECT * FROM admin")
+        if cur.fetchone() is None:
+            cur.execute("INSERT INTO admin (username, password) VALUES (?, ?)", ("admin", "admin123"))
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER,
+                resume_id INTEGER,
+                match_percentage REAL,
+                admin_feedback TEXT,
+                error_description TEXT,
+                correction_suggestion TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (job_id) REFERENCES job_posts (id),
+                FOREIGN KEY (resume_id) REFERENCES resumes (id)
+            )
+        """)
+        
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS enhanced_prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt_type TEXT,
+                original_prompt TEXT,
+                enhanced_prompt TEXT,
+                feedback_count INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
     
     conn.commit()
     conn.close()
 
 # --- JOB FUNCTIONS ---
 def add_job_post(title, description, requirements=None):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO job_posts (title, description, requirements) VALUES (?, ?, ?)",
-        (title, description, requirements)
-    )
-    new_id = cur.lastrowid
+    if DATABASE_URL:
+        cur.execute(
+            "INSERT INTO job_posts (title, description, requirements) VALUES (%s, %s, %s) RETURNING id",
+            (title, description, requirements)
+        )
+        new_id = cur.fetchone()[0]
+    else:
+        cur.execute(
+            "INSERT INTO job_posts (title, description, requirements) VALUES (?, ?, ?)",
+            (title, description, requirements)
+        )
+        new_id = cur.lastrowid
     conn.commit()
     conn.close()
     return new_id
 
 def get_job_post_by_id(job_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM job_posts WHERE id = ?", (job_id,))
+    if DATABASE_URL:
+        cur.execute("SELECT * FROM job_posts WHERE id = %s", (job_id,))
+    else:
+        cur.execute("SELECT * FROM job_posts WHERE id = ?", (job_id,))
     job = cur.fetchone()
     conn.close()
     return job
 
 def get_all_job_posts():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM job_posts ORDER BY id DESC")
     rows = cur.fetchall()
@@ -106,11 +179,14 @@ def get_all_job_posts():
 # --- AI MATCHING LOGIC ---
 # Note: Iska naam 'get_job_matches' rakha hai taaki app.py se match kare
 def get_job_matches(job_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Job requirements - description se keywords extract karte hain
-    cursor.execute("SELECT title, description, requirements FROM job_posts WHERE id = ?", (job_id,))
+    if DATABASE_URL:
+        cursor.execute("SELECT title, description, requirements FROM job_posts WHERE id = %s", (job_id,))
+    else:
+        cursor.execute("SELECT title, description, requirements FROM job_posts WHERE id = ?", (job_id,))
     job = cursor.fetchone()
     if not job:
         return []
@@ -323,24 +399,34 @@ def get_job_matches(job_id):
 
 # --- RESUME UTILITIES ---
 def add_resume(name, email, phone, photo, file_path, summary):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO resumes (name, email, phone, photo, file_path, summary) VALUES (?, ?, ?, ?, ?, ?)", 
-                (name, email, phone, photo, file_path, summary))
-    new_id = cur.lastrowid
+    if DATABASE_URL:
+        cur.execute(
+            "INSERT INTO resumes (name, email, phone, photo, file_path, summary) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            (name, email, phone, photo, file_path, summary)
+        )
+        new_id = cur.fetchone()[0]
+    else:
+        cur.execute("INSERT INTO resumes (name, email, phone, photo, file_path, summary) VALUES (?, ?, ?, ?, ?, ?)", 
+                    (name, email, phone, photo, file_path, summary))
+        new_id = cur.lastrowid
     conn.commit()
     conn.close()
     return new_id
 
 def update_resume_summary(resume_id, summary):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE resumes SET summary = ? WHERE id = ?", (summary, resume_id))
+    if DATABASE_URL:
+        cur.execute("UPDATE resumes SET summary = %s WHERE id = %s", (summary, resume_id))
+    else:
+        cur.execute("UPDATE resumes SET summary = ? WHERE id = ?", (summary, resume_id))
     conn.commit()
     conn.close()
 
 def get_all_resumes():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM resumes ORDER BY id DESC")
     data = cur.fetchall()
@@ -348,18 +434,24 @@ def get_all_resumes():
     return data
 
 def get_resume_by_id(resume_id):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM resumes WHERE id = ?", (resume_id,))
+    if DATABASE_URL:
+        cur.execute("SELECT * FROM resumes WHERE id = %s", (resume_id,))
+    else:
+        cur.execute("SELECT * FROM resumes WHERE id = ?", (resume_id,))
     resume = cur.fetchone()
     conn.close()
     return resume
 
 
 def verify_admin(username, password):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM admin WHERE username = ? AND password = ?", (username, password))
+    if DATABASE_URL:
+        cur.execute("SELECT * FROM admin WHERE username = %s AND password = %s", (username, password))
+    else:
+        cur.execute("SELECT * FROM admin WHERE username = ? AND password = ?", (username, password))
     user = cur.fetchone()
     conn.close()
     return user is not None
@@ -367,60 +459,95 @@ def verify_admin(username, password):
 # --- AI FEEDBACK FUNCTIONS FOR RAG SYSTEM ---
 def add_ai_feedback(job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion):
     """Add admin feedback for AI results"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO ai_feedback (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion))
-    new_id = cur.lastrowid
+    if DATABASE_URL:
+        cur.execute("""
+            INSERT INTO ai_feedback (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+        """, (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion))
+        new_id = cur.fetchone()[0]
+    else:
+        cur.execute("""
+            INSERT INTO ai_feedback (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (job_id, resume_id, match_percentage, admin_feedback, error_description, correction_suggestion))
+        new_id = cur.lastrowid
     conn.commit()
     conn.close()
     return new_id
 
 def get_ai_feedback_by_type(prompt_type):
     """Get feedback for specific prompt type"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT error_description, correction_suggestion 
-        FROM ai_feedback 
-        WHERE admin_feedback = ? OR correction_suggestion LIKE ?
-        ORDER BY created_at DESC 
-        LIMIT 5
-    """, (prompt_type, f"%{prompt_type}%"))
+    if DATABASE_URL:
+        cur.execute("""
+            SELECT error_description, correction_suggestion 
+            FROM ai_feedback 
+            WHERE admin_feedback = %s OR correction_suggestion LIKE %s
+            ORDER BY created_at DESC 
+            LIMIT 5
+        """, (prompt_type, f"%{prompt_type}%"))
+    else:
+        cur.execute("""
+            SELECT error_description, correction_suggestion 
+            FROM ai_feedback 
+            WHERE admin_feedback = ? OR correction_suggestion LIKE ?
+            ORDER BY created_at DESC 
+            LIMIT 5
+        """, (prompt_type, f"%{prompt_type}%"))
     feedback = cur.fetchall()
     conn.close()
     return feedback
 
 def add_enhanced_prompt(prompt_type, original_prompt, enhanced_prompt):
     """Add enhanced prompt to database"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT OR REPLACE INTO enhanced_prompts (prompt_type, original_prompt, enhanced_prompt, feedback_count)
-        VALUES (?, ?, ?, COALESCE((SELECT feedback_count FROM enhanced_prompts WHERE prompt_type = ?) + 1, 1))
-    """, (prompt_type, original_prompt, enhanced_prompt, prompt_type))
+    if DATABASE_URL:
+        # PostgreSQL uses ON CONFLICT for upsert
+        cur.execute("""
+            INSERT INTO enhanced_prompts (prompt_type, original_prompt, enhanced_prompt, feedback_count)
+            VALUES (%s, %s, %s, COALESCE((SELECT feedback_count FROM enhanced_prompts WHERE prompt_type = %s) + 1, 1))
+            ON CONFLICT (prompt_type) DO UPDATE SET
+                original_prompt = EXCLUDED.original_prompt,
+                enhanced_prompt = EXCLUDED.enhanced_prompt,
+                feedback_count = enhanced_prompts.feedback_count + 1
+        """, (prompt_type, original_prompt, enhanced_prompt, prompt_type))
+    else:
+        cur.execute("""
+            INSERT OR REPLACE INTO enhanced_prompts (prompt_type, original_prompt, enhanced_prompt, feedback_count)
+            VALUES (?, ?, ?, COALESCE((SELECT feedback_count FROM enhanced_prompts WHERE prompt_type = ?) + 1, 1))
+        """, (prompt_type, original_prompt, enhanced_prompt, prompt_type))
     conn.commit()
     conn.close()
 
 def get_enhanced_prompt(prompt_type):
     """Get enhanced prompt for specific type"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT enhanced_prompt FROM enhanced_prompts 
-        WHERE prompt_type = ? 
-        ORDER BY feedback_count DESC 
-        LIMIT 1
-    """, (prompt_type,))
+    if DATABASE_URL:
+        cur.execute("""
+            SELECT enhanced_prompt FROM enhanced_prompts 
+            WHERE prompt_type = %s 
+            ORDER BY feedback_count DESC 
+            LIMIT 1
+        """, (prompt_type,))
+    else:
+        cur.execute("""
+            SELECT enhanced_prompt FROM enhanced_prompts 
+            WHERE prompt_type = ? 
+            ORDER BY feedback_count DESC 
+            LIMIT 1
+        """, (prompt_type,))
     result = cur.fetchone()
     conn.close()
     return result[0] if result else None
 
 def get_all_ai_feedback():
     """Get all AI feedback for admin review"""
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
         SELECT af.*, j.title, r.name 

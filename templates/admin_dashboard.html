@@ -72,8 +72,8 @@ Return ONLY the 5 bullet points, nothing else.</pre>
                     <div class="resume-info">
                         {% if resume[4] %}
                             <div class="candidate-photo">
-                                <a href="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" target="_blank">
-                                    <img src="{{ url_for('static', filename=resume[4].replace('uploads/', '')) }}" 
+                                <a href="{{ url_for('serve_upload', filename=resume[4]) }}" target="_blank">
+                                    <img src="{{ url_for('serve_upload', filename=resume[4]) }}" 
                                         alt="{{ resume[1] }}" class="photo-img">
                                 </a>
                             </div>

@@ -1,17 +1,28 @@
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 import os
 import logging
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
+# Cloudinary for persistent file storage
+import cloudinary
+import cloudinary.uploader
+
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+# Cloudinary configuration from environment variables
+cloudinary.config(
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET')
+)
 
 # Production environment setup - FIXED FOR DEPLOYMENT
 if os.environ.get('FLASK_ENV') == 'production':
     debug_mode = False
     # Use deployment-safe paths
-    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/app/uploads')
-    DB_NAME = os.environ.get('DATABASE_PATH', '/app/resumes.db')
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp')  # Cloudinary used in production
+    DB_NAME = os.environ.get('DATABASE_PATH', '/tmp/resumes.db')
 else:
     debug_mode = True
     # Local development paths
@@ -83,6 +94,20 @@ def generate_professional_summary_rag(resume_text):
 def normalize_resume_json(resume_text):
     """Basic normalization without AI"""
     return {"skills": [], "experience": "", "education": ""}
+
+# Import AI functions from rag_summary
+try:
+    from rag_summary import (
+        extract_text_from_resume as ai_extract_text,
+        generate_professional_summary_rag as ai_generate_summary,
+        calculate_match_percentage_full_ai_rag as ai_calculate_match,
+        get_ai_match_analysis as ai_get_analysis
+    )
+    AI_AVAILABLE = True
+    print("✅ AI modules loaded successfully")
+except Exception as e:
+    print(f"⚠️ AI modules not available: {e}")
+    AI_AVAILABLE = False
 
 def get_ai_match_analysis(resume_text, job_description, match_percentage):
     """Basic analysis without AI"""
@@ -164,15 +189,43 @@ def home_post():
 
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
-
-            # Extract text and generate summary
-            resume_text = extract_text_from_resume(file_path)
+            
+            # Save temporarily for text extraction
+            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(temp_path)
+            
+            # Extract text using AI function if available, else basic
+            if AI_AVAILABLE:
+                resume_text = ai_extract_text(temp_path)
+            else:
+                resume_text = extract_text_from_resume(temp_path)
+            
+            # Upload to Cloudinary for permanent storage
+            try:
+                upload_result = cloudinary.uploader.upload(
+                    temp_path,
+                    resource_type="raw",
+                    folder="resumes",
+                    public_id=f"{filename}_{int(os.times().elapsed)}"
+                )
+                cloudinary_url = upload_result['secure_url']
+                print(f"✅ Uploaded to Cloudinary: {cloudinary_url}")
+            except Exception as e:
+                print(f"❌ Cloudinary upload failed: {e}")
+                cloudinary_url = temp_path  # Fallback to local path
+            
+            # Clean up temp file
+            try:
+                os.remove(temp_path)
+            except:
+                pass
             
             if resume_text:
                 try:
-                    summary = generate_professional_summary_rag(resume_text)
+                    if AI_AVAILABLE:
+                        summary = ai_generate_summary(resume_text)
+                    else:
+                        summary = generate_professional_summary_rag(resume_text)
                     
                     # Check if summary is actually an error (contains specific error patterns)
                     if summary and ("Error generating summary:" in summary or "AI quota exceeded" in summary or "AI API Key Error:" in summary or "AI Error:" in summary):
@@ -183,8 +236,8 @@ def home_post():
             else:
                 summary = "Summary Error: Could not extract text from resume. Please check file format."
 
-            # Add to database
-            add_resume(name, email, phone, "", file_path, summary)
+            # Add to database with Cloudinary URL
+            add_resume(name, email, phone, "", cloudinary_url, summary)
 
             # Store summary in session to display after upload
             session['last_summary'] = summary
@@ -318,120 +371,73 @@ def admin_jobs():
 
             for r in resumes:
                 resume_path = r[5]
-                if not resume_path or not os.path.exists(resume_path):
+                if not resume_path:
                     continue
 
-                resume_text = extract_text_from_resume(resume_path)
+                # Extract resume text - try to get from file if local, or download from Cloudinary
+                resume_text = ""
+                try:
+                    # Check if it's a Cloudinary URL
+                    if resume_path.startswith('http') or 'cloudinary.com' in resume_path:
+                        # For Cloudinary URLs, we need to download or use stored text
+                        # Since we store summary in DB, use that for matching
+                        resume_text = r[6] if len(r) > 6 and r[6] else ""
+                    elif os.path.exists(resume_path):
+                        if AI_AVAILABLE:
+                            resume_text = ai_extract_text(resume_path)
+                        else:
+                            resume_text = extract_text_from_resume(resume_path)
+                except Exception as e:
+                    print(f"❌ Error extracting resume text: {e}")
+                    resume_text = r[6] if len(r) > 6 and r[6] else ""
+                
                 if not resume_text:
                     continue
 
-                # Create basic job and resume data structure
-                jd_json = {
-                    "skills": ["python", "java", "html", "react"],  # Extract from description
-                    "projects": [],
-                    "experience_years": 0
-                }
-                
-                resume_json = {
-                    "skills": ["python", "java", "html"],  # Extract from resume
-                    "projects": [],
-                    "experience_years": 0
-                }
-
                 # ========================================
-                # 🔥 CALCULATE FINAL PERCENTAGE - CASE-INSENSITIVE MATCHING
+                # 🔥 CALCULATE FINAL PERCENTAGE - AI POWERED
                 # ========================================
-                # Clean and normalize skills
-                jd_skills_clean = [skill.lower() for skill in jd_json["skills"] if skill]
-                resume_skills_clean = [skill.lower() for skill in resume_json["skills"] if skill]
-                
-                # Calculate basic percentage based on matched skills - INLINE CALCULATION
-                if len(jd_skills_clean) > 0:
-                    # Calculate matched skills inline to avoid variable reference error
-                    matched_count = 0
-                    for skill in resume_skills_clean:
-                        if skill in jd_skills_clean:
-                            matched_count += 1
-                    basic_percentage = (matched_count / len(jd_skills_clean)) * 100
-                else:
-                    basic_percentage = 0.0
-                
-                # Use AI for final analysis, but fallback to basic calculation if AI fails
                 try:
-                    final_percentage = calculate_match_percentage_full_ai_rag(resume_text, description)
-                    # If AI returns 0 due to quota issues, use basic calculation
-                    if final_percentage == 0.0:
-                        final_percentage = basic_percentage
-                except:
-                    final_percentage = basic_percentage
-                
-                # 🔥 EXPERIENCE VALIDATION - Check if job requires experience
-                experience_required = False
-                experience_years = 0
-                
-                # Check for experience requirements in job description
-                if any(exp in description.lower() for exp in ['year experience', 'years experience', '+ year', '+ years']):
-                    experience_required = True
-                    # Extract experience years if mentioned
-                    import re
-                    exp_match = re.search(r'(\d+)\+?\s*year', description.lower())
-                    if exp_match:
-                        experience_years = int(exp_match.group(1))
-                
-                # Check if candidate has experience (basic check)
-                candidate_has_experience = False
-                if resume_text:
-                    # Look for experience indicators in resume
-                    exp_indicators = ['years of experience', 'year of experience', 'experience:', 'worked for', 'employed', 'professional experience']
-                    candidate_has_experience = any(indicator in resume_text.lower() for indicator in exp_indicators)
-                
-                print(f"🔍 EXPERIENCE CHECK: Required={experience_required}, Years={experience_years}, Candidate has exp={candidate_has_experience}")
-                
-                # Apply experience penalty if required but not present
-                if experience_required and not candidate_has_experience:
-                    print(f"⚠️ EXPERIENCE MISMATCH: Job requires {experience_years}+ years but candidate lacks experience")
-                    # Apply small experience penalty (5% deduction)
-                    final_percentage = max(final_percentage - 5, 0)  # Deduct 5%, minimum 0%
-                    ai_analysis = f"Experience mismatch: Job requires {experience_years}+ years experience, but candidate lacks professional experience. Skills match perfectly but experience level is insufficient. 5% penalty applied."
-                else:
-                    # Get AI analysis for why not 100% from AI model
-                    if final_percentage < 100:
-                        ai_analysis = get_ai_match_analysis(resume_text, description, final_percentage)
+                    if AI_AVAILABLE:
+                        # Use full AI matching with RAG
+                        final_percentage = ai_calculate_match(resume_text, description)
+                        ai_analysis = ai_get_analysis(resume_text, description, final_percentage)
                     else:
-                        ai_analysis = "Perfect match! Candidate meets all job requirements."
+                        # Fallback to basic calculation
+                        final_percentage = calculate_match_percentage_full_ai_rag(resume_text, description)
+                        if final_percentage == 0.0:
+                            final_percentage = 50.0  # Default fallback
+                        ai_analysis = get_ai_match_analysis(resume_text, description, final_percentage)
+                except Exception as e:
+                    print(f"❌ Matching error: {e}")
+                    final_percentage = 0.0
+                    ai_analysis = "Matching analysis unavailable"
                 
-                # Find matched skills for UI display (no duplicates)
-                matched_skills_for_ui = []
-                matched_seen = set()
+                # Find matched skills for UI display (extract from job description)
+                import re
+                job_skills = re.findall(r'\b(python|java|javascript|html|css|sql|react|node|aws|docker|kubernetes|git|api|rest|graphql|spring|django|flask|machine learning|ai|ml|data|analytics)\b', description.lower())
+                matched_skills_for_ui = list(set(job_skills))
                 
-                for skill in resume_skills_clean:
-                    if skill in jd_skills_clean and skill not in matched_seen:
-                        matched_skills_for_ui.append(skill)
-                        matched_seen.add(skill)
-                
-                # Debug logging
                 print("\n" + "=" * 70)
                 print(f"📋 CANDIDATE: {r[1]}")
                 print("=" * 70)
-                print(f"📝 JD REQUIRES: {jd_json['skills']}")
-                print(f"📄 RESUME HAS: {resume_json['skills']}")
-                print(f"✅ MATCHED: {matched_skills_for_ui}")
                 print(f"🎯 PERCENTAGE: {final_percentage}%")
                 print(f"🤖 AI ANALYSIS: {ai_analysis}")
                 print("=" * 70 + "\n")
 
-                # Show all candidates - remove 0% filter for debugging
+                # Show all candidates
                 if final_percentage >= 0:
                     match_results.append({
+                        "id": r[0],
                         "name": r[1],
                         "email": r[2],
-                        "match": final_percentage,  # <--- Ye 'match' key hona zaroori hai
-                        "match_percentage": final_percentage,  # For consistency
+                        "match": final_percentage,
+                        "match_percentage": final_percentage,
                         "suggestions": "AI-powered matching analysis",
                         "matched_skills": matched_skills_for_ui,
                         "missing_skills": [],
-                        "summary": generate_professional_summary_rag(resume_text),
-                        "ai_analysis": ai_analysis  # 🔥 NEW: AI analysis for why not 100%
+                        "summary": r[6] if len(r) > 6 and r[6] else "",
+                        "ai_analysis": ai_analysis
                     })
 
             # Sort by percentage (highest first)
@@ -490,10 +496,23 @@ def api_get_matches(job_id):
 
 
 
-@app.route('/uploads/<filename>')
+@app.route('/uploads/<path:filename>')
 def serve_upload(filename):
-    """Serve resume files from upload folder"""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    """Serve resume files - redirect to Cloudinary if URL, else local"""
+    # If it's a Cloudinary URL, redirect directly
+    if filename.startswith('http') or 'cloudinary.com' in filename:
+        return redirect(filename)
+    
+    # If it's a full Cloudinary URL stored in DB
+    if 'res.cloudinary.com' in filename:
+        return redirect(filename)
+    
+    # Otherwise serve from local (fallback for old files)
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except:
+        flash("File not found")
+        return redirect(url_for('admin_dashboard'))
 
 # 🤖 AI FEEDBACK SYSTEM FOR RAG
 # =========================

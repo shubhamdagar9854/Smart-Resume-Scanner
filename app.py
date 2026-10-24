@@ -553,6 +553,54 @@ def admin_feedback():
     # Redirect back to jobs page
     return redirect(url_for("admin_jobs"))
 
+@app.route("/api/rate_match", methods=["POST"])
+def api_rate_match():
+    """Quick rating endpoint for match accuracy improvement"""
+    if not session.get("admin_logged_in"):
+        return jsonify({"error": "Unauthorized", "status": "error"}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided", "status": "error"}), 400
+    
+    job_id = data.get('job_id')
+    resume_id = data.get('resume_id')
+    rating = data.get('rating')  # 'correct', 'high', 'low'
+    ai_score = data.get('ai_score')
+    correct_pct = data.get('correct_pct')
+    
+    if not all([job_id, resume_id, rating, ai_score is not None]):
+        return jsonify({"error": "Missing required fields", "status": "error"}), 400
+    
+    # Determine feedback text based on rating
+    if rating == 'correct':
+        feedback_text = f"Match {ai_score}% was correct"
+        error_desc = f"AI gave {ai_score}%"
+        correction = f"Correct percentage: {correct_pct or ai_score}%"
+    elif rating == 'high':
+        feedback_text = f"Match {ai_score}% was too high (overestimated)"
+        error_desc = f"AI overestimated: gave {ai_score}%"
+        correction = f"Should be lower: {correct_pct or 'reduce by 15-20%'}%"
+    else:  # low
+        feedback_text = f"Match {ai_score}% was too low (underestimated)"
+        error_desc = f"AI underestimated: gave {ai_score}%"
+        correction = f"Should be higher: {correct_pct or 'increase by 15-20%'}%"
+    
+    try:
+        # Save to existing ai_feedback table (RAG system reads this!)
+        add_ai_feedback(
+            int(job_id), 
+            int(resume_id), 
+            float(ai_score), 
+            feedback_text, 
+            error_desc, 
+            correction
+        )
+        return jsonify({"message": f"Feedback saved: {rating}", "status": "success"})
+    except Exception as e:
+        print(f"❌ Rating Error: {e}")
+        return jsonify({"error": str(e), "status": "error"}), 500
+
 @app.route("/admin/feedback_history")
 def admin_feedback_history():
     """Show all AI feedback history"""

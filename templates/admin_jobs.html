@@ -647,6 +647,19 @@
                     </button>
                 </div>
 
+                <!-- 🎯 Quick Rating Buttons for Accuracy Improvement -->
+                <div class="rating-section" style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
+                    <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">
+                        <strong>AI Match: {{ m.match_percentage }}%</strong> — Is this correct?
+                    </div>
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">
+                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'correct', {{ m.match_percentage }})" style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">✅ Sahi Hai</button>
+                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'high', {{ m.match_percentage }})" style="padding: 6px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📈 Zyada Hai</button>
+                        <button class="rating-btn" onclick="rateMatch({{ item.job[0] }}, {{ m.id }}, 'low', {{ m.match_percentage }})" style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📉 Kam Hai</button>
+                        <input type="number" id="correctPct_{{ m.id }}" placeholder="Sahi %" min="0" max="100" style="width: 70px; padding: 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 13px;" title="Enter correct percentage (optional)">
+                    </div>
+                </div>
+
             </div>
 
             <div class="match-percentage">{{ m.match_percentage }}%</div>
@@ -763,6 +776,48 @@
 
             }
 
+        }
+
+        // 🎯 Quick Rating Function for Accuracy Improvement
+        async function rateMatch(jobId, resumeId, rating, aiScore) {
+            const correctPct = document.getElementById('correctPct_' + resumeId).value;
+            const btn = event.target;
+            const originalText = btn.innerText;
+            
+            // Disable buttons during request
+            document.querySelectorAll('#correctPct_' + resumeId).forEach(el => el.disabled = true);
+            document.querySelectorAll('.rating-btn').forEach(el => el.disabled = true);
+            btn.innerText = 'Saving...';
+            btn.style.opacity = '0.7';
+            
+            try {
+                const response = await fetch('/api/rate_match', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        job_id: jobId,
+                        resume_id: resumeId,
+                        rating: rating,
+                        ai_score: aiScore,
+                        correct_pct: correctPct || null
+                    })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    btn.innerText = '✓ Saved';
+                    btn.style.background = '#6c757d';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown'));
+                    btn.innerText = originalText;
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+                btn.innerText = originalText;
+            } finally {
+                document.querySelectorAll('#correctPct_' + resumeId).forEach(el => el.disabled = false);
+                document.querySelectorAll('.rating-btn').forEach(el => el.disabled = false);
+            }
         }
 
     </script>
